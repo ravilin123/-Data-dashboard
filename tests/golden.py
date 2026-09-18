@@ -64,6 +64,10 @@ try:
     check("★ 3 家同沉默同网关 → 报通道异常，数的是家", e["incidents"] and e["incidents"][0]["merchants"] == 3, e["incidents"])
     e = load("churn_assess", "通道异常_2家乘7站点14条仍不报")
     check("★ 2 家 ×7 站点 = 14 条仍不报", e["incidents"] == [], e["incidents"])
+    d5 = load("churn_daily", "门槛看商户多大不看掉了多少")
+    d0 = load("churn_daily", "门槛0是不设门槛不被or吃掉")
+    check("★ 门槛 5000 和门槛 0 的两条 expected 必须不同（2026-09-18 抓到过：settings 形状写错、两条一模一样）",
+          d5 != d0 and d0.get("floor") == 0 and d5.get("floor") == 5000, (d5.get("floor"), d0.get("floor")))
     a4 = load("churn_trade", "周五到周四_锚点4_周号按结束日")
     a6 = load("churn_trade", "周日起_锚点6_同一批数分桶不同")
     check("★ 同一批数、两个锚点分出的周不一样（口径参数化）",

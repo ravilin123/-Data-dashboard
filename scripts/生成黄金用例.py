@@ -128,9 +128,12 @@ def cases() -> dict:
     # ---- churn_daily：日报汇总（输入是 assess 的输出，init 时算一次存下来） ----
     from churn import assess as A
     st = A.assess(_days(drop), D[-1], None, cfg)
+    # ⚠ summary() 读的是**扁平**的 settings（daily.min_tpv 直接 .get("daily_min_tpv")），不是 {"churn": {...}}。
+    #   第一版写成了带 churn 段的形状，两条用例的 expected 一模一样、门槛永远是默认 5000 —— 用例名说的事根本没钉住。
+    #   tests/golden.py 现在钉着「这两条 expected 必须不同」。
     out["churn_daily"] = {
-        "门槛看商户多大不看掉了多少": ({"state": st}, {"churn": {"daily_min_tpv": 5000, "daily_top_n": 5}}),
-        "门槛0是不设门槛不被or吃掉": ({"state": st}, {"churn": {"daily_min_tpv": 0, "daily_top_n": 5}}),
+        "门槛看商户多大不看掉了多少": ({"state": st}, {"daily_min_tpv": 5000, "daily_top_n": 5}),
+        "门槛0是不设门槛不被or吃掉": ({"state": st}, {"daily_min_tpv": 0, "daily_top_n": 5}),
     }
     # ---- order_monitor_classify：出单监控分档（口径吃 pandas DataFrame；expected 要在装了 pandas 的机器上 --generate） ----
     def om(uid, site, name, bd, tpv, first_txn, submit, feedback, site_submit=""):
@@ -141,7 +144,7 @@ def cases() -> dict:
     today = [
         om(U1, "a.com", "甲", "赵娜", 150.0, "2026-09-17 09:00:00", "2026-09-10 10:00:00", "2026-09-11 10:00:00"),   # 昨天 <100 今天 ≥100 → 新出单
         om(U2, "b.com", "乙", "赵娜", 30.0, "2026-09-17 09:00:00", "2026-09-12 10:00:00", "2026-09-13 10:00:00"),    # 今天第一笔、<100 → 测试交易
-        om(U3, "c.com", "丙", "", 0.0, "", "2026-09-15 10:00:00", "2026-09-16 10:00:00"),                              # 昨天刚过通道、没出单 → 新审核通过-待出单；所属BD 空 → 未分配BD
+        om(U3, "c.com", "丙", "", 0.0, "", "2026-09-15 10:00:00", "2026-09-16 10:00:00"),                              # 通道反馈日 09-16、报表日 09-17、没出单 → 按 classify 第 7~8 步落「👀 3天内未出单」（待有 pandas 的机器生成 expected 后核）；所属BD 空 → 未分配BD
         om(U4, "d.com", "丁", "钱七", 0.0, "", "2026-03-01 10:00:00", "2026-03-02 10:00:00"),                          # 开通 >180 天 → 只入表不播报
         om(AGENT, "", "戊", "赵娜", 0.0, "", "2026-09-15 10:00:00", "2026-09-16 10:00:00"),                            # 站点为空 → 丢弃
     ]
@@ -189,9 +192,18 @@ def run(family: str, inp: dict, settings: dict):
     raise KeyError(f"不认识的族：{family}")
 
 
+def _jsonable(o):
+    """pandas 的 Series / DataFrame → dict（classify 的 audit 条目里带着整行）；别的交给 str。
+    str(Series) 带 dtype 和对齐空格，两台机器都不一定一样，逐字节比不了。"""
+    if hasattr(o, "to_dict"):
+        d = o.to_dict()
+        return {str(k): (None if (isinstance(v, float) and v != v) else v) for k, v in d.items()}
+    return str(o)
+
+
 def normalize(obj):
-    """dict / tuple / datetime → JSON 能落盘的形状（tuple 变 list，别的原样）。"""
-    return json.loads(json.dumps(obj, ensure_ascii=False, default=str))
+    """dict / tuple / datetime / pandas 行 → JSON 能落盘的形状（tuple 变 list）。"""
+    return json.loads(json.dumps(obj, ensure_ascii=False, default=_jsonable))
 
 
 def main() -> int:
