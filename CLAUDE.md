@@ -15,6 +15,7 @@
 
 | 目录 | 是什么 |
 |---|---|
+| `生成看板.py` `生成看板.bat` `board/` | **独立单文件看板**（第三次调整 Q1~Q15，`docs/specs/看板/计划.md`）：只读工作台 data/，用同步来的口径算四块，落 `看板/看板_<日期>.html`。`board/js/` 是页面自己的渲染（三块改自工作台各页的 render 去掉控件；转化率直接 import 同步来的 `render/*.js`，面板骨架和 CSS 生成时从同步来的 `static/conversion.html` 抽）。`tests/offline_board.py` 钉 |
 | `server/` | 看板服务：`/api/dashboard/*`、按人口令、访问日志、导出单文件。**标准库 wsgiref，零依赖**；日报的拼法和页面是同步来的 `dashboard/`、`static/dashboard.html` |
 | `adapters/` | 公司接口 → 契约日报（或 → 报表列名再喂口径层） |
 | `contracts/` | 日报契约的 JSON Schema + 校验器 + 每块口径的输入列 |
@@ -26,6 +27,7 @@
 
 ```bash
 bash tests/run-unit.sh            # 同步来的用例 + 自己的，零依赖；要 pandas 的会自己说跳过
+WB_CHROME=/path/chrome python tests/offline_board.py   # 看板：再用无头 Chromium 真开一次，四块都得渲染出内容
 python tests/sync_check.py        # 同步来的文件没被手改
 python scripts/同步口径.py --from ../payment-ops-workbench --dry-run   # 看工作台那边有什么新的
 ```

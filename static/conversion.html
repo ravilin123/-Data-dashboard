@@ -1,0 +1,735 @@
+<meta charset="utf-8">
+<title>转化率数据监控 v3</title>
+<!-- SheetJS 0.18.5，两页共用。它是 UMD 不是 ESM，用普通 <script> 先加载，
+     window.XLSX 就绪后下面的 module 才跑。见 static/vendor/README.md -->
+<script src="/static/vendor/xlsx.full.min.js"></script>
+
+<style>
+  /* ---- design tokens (light) ---- */
+  :root{
+    color-scheme:light;
+    --plane:#fafbfd; --surface:#ffffff; --surface-2:#f4f6fa;
+    --ink:#12161f; --ink-2:#455065; --muted:#7a8699;
+    --line:#e3e8f0; --line-2:#eef1f6;
+    /* 品牌色只给主操作和激活态。以前是绿的（#1f7a4d），和语义色 --good 撞成一族 ——
+       这两个页面全靠语义色传严重度，品牌和「好」看起来是一回事就会读错。
+       换成工作台外壳那支蓝，顺带解决工具是在外壳 iframe 里打开、点进去从蓝跳绿。 */
+    --brand:#1664ff; --brand-ink:#0b47b8; --brand-soft:#eaf1ff;
+    /* 语义色：独立于品牌色，四档递进 */
+    --good:#0f9d63; --warning:#b7791f; --serious:#c9622f; --critical:#d64541;
+    /* 语义底色 + 其上的文字色。以前这些是散在各条规则里的硬编码，
+       深色还要再写一遍覆盖 —— 收进 token 后组件只写一次。 */
+    --good-soft:#e6f5ee;  --good-on:#0b6b45;
+    --warn-soft:#fdf4e3;  --warn-on:#8a5a10;
+    --crit-soft:#fdedec;  --crit-on:#a32f2b;
+    --info-soft:#eaf1ff;  --info-on:#0b47b8;
+    --mid:#eceef2;
+    --shadow:0 1px 2px rgba(18,22,31,.04),0 4px 16px rgba(18,22,31,.05);
+    /* 字体不随主题变，只在浅色块里定义一次，深色块会继承 */
+    /* 趋势图的分类色（B5）。**独立于品牌色和语义色**：
+       语义色四档负责传严重度，拿来当「第三条线」会被读成「这条是好的」。
+       这三支跑过 dataviz 的六项校验（相邻色差 / 色盲下的可分辨 / 色度 / 明度带 / 对比度），
+       浅深两套各在自己的底色上验过一遍。取色按 ALLOWED_SOURCES 的下标，认来源不认名次。 */
+    --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a;
+    --ui:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  @media (prefers-color-scheme:dark){ :root:where(:not([data-theme="light"])){
+    color-scheme:dark;
+    --plane:#0e1218; --surface:#161b24; --surface-2:#1d232e;
+    --ink:#e8ecf3; --ink-2:#a3aec1; --muted:#727e93;
+    --line:#272f3d; --line-2:#222a36;
+    --brand:#5b8dff; --brand-ink:#a8c4ff; --brand-soft:#16213c;
+    --good:#3fbc86; --warning:#d9a441; --serious:#e08a5a; --critical:#ef6f6b;
+    --good-soft:#12281f;  --good-on:#3fbc86;
+    --warn-soft:#2b2313;  --warn-on:#d9a441;
+    --crit-soft:#2e1817;  --crit-on:#ef6f6b;
+    --info-soft:#16213c;  --info-on:#a8c4ff;
+    --mid:#2a3140;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.35);
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70;
+  }}
+  :root[data-theme="dark"]{
+    color-scheme:dark;
+    --plane:#0e1218; --surface:#161b24; --surface-2:#1d232e;
+    --ink:#e8ecf3; --ink-2:#a3aec1; --muted:#727e93;
+    --line:#272f3d; --line-2:#222a36;
+    --brand:#5b8dff; --brand-ink:#a8c4ff; --brand-soft:#16213c;
+    --good:#3fbc86; --warning:#d9a441; --serious:#e08a5a; --critical:#ef6f6b;
+    --good-soft:#12281f;  --good-on:#3fbc86;
+    --warn-soft:#2b2313;  --warn-on:#d9a441;
+    --crit-soft:#2e1817;  --crit-on:#ef6f6b;
+    --info-soft:#16213c;  --info-on:#a8c4ff;
+    --mid:#2a3140;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.35);
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70;
+  }
+
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  body{margin:0;background:var(--plane);color:var(--ink);
+    font:14px/1.55 var(--ui);
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1360px;margin:0 auto;padding:18px 20px 96px}
+  h1{font-size:19px;margin:0;letter-spacing:-.01em}
+  .sub{color:var(--ink-2);margin:4px 0 0;font-size:13px}
+  .tabnums{font-variant-numeric:tabular-nums}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:18px}
+
+  /* ---- 顶部导航栏 ---- */
+  .navbar{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--surface) 92%,transparent);
+    backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .nav-top{max-width:1360px;margin:0 auto;padding:9px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .brand{font-size:15px;font-weight:700;letter-spacing:-.01em;display:flex;align-items:center;gap:8px;white-space:nowrap}
+  .brand .ver{font-size:11px;color:var(--muted);font-weight:500}
+  .nav-spacer{flex:1}
+  .seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px}
+  /* transition 写在 all:unset 之后 —— unset 会把它一起清掉 */
+  .seg button{all:unset;cursor:pointer;font-size:12.5px;color:var(--ink-2);padding:5px 13px;border-radius:6px;white-space:nowrap;
+    transition:background-color 120ms ease-out,color 120ms ease-out,scale 150ms ease-out}
+  .seg button[aria-pressed="true"]{background:var(--brand);color:#fff;font-weight:600}
+  .seg button:disabled{opacity:.35;cursor:not-allowed}
+  .seg button:active:not(:disabled){scale:.96}
+  .seg.sm button{font-size:12px;padding:4px 9px}
+  .seg-lbl{font-size:11px;color:var(--muted);margin-right:-8px;white-space:nowrap}
+  /* .chart-head 一直没有样式规则，标题和右侧计数直接贴在一起 */
+  .chart-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .chart-head .s{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+  /* 本期 / 对比期选择：可以挑任意两期比，不再写死最新两期 */
+  .datesel{display:inline-flex;align-items:center;gap:8px}
+  .datesel[hidden]{display:none}
+  .datesel label{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--muted);white-space:nowrap}
+  .datesel select{font:inherit;font-size:12px;font-variant-numeric:tabular-nums;color:var(--ink);
+    background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:4px 6px;cursor:pointer}
+  .datesel select:disabled{opacity:.45;cursor:not-allowed}
+  .datesel .lnk{all:unset;cursor:pointer;font-size:11.5px;color:var(--brand);white-space:nowrap}
+  .datesel .lnk:hover{text-decoration:underline}
+  .datesel .lnk[disabled]{opacity:.35;cursor:default;text-decoration:none}
+  .theme{display:flex;gap:2px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:3px}
+  /* 视觉高度约 25px，够不到密集桌面 40px 的下限。左右两颗在同一段里紧挨着，
+     只能纵向撑：伪元素补到 40px 高。.theme 上下没有别的可点元素，不会撞热区。 */
+  .theme button{all:unset;cursor:pointer;font-size:12px;color:var(--ink-2);padding:4px 9px;border-radius:6px;position:relative;
+    transition:background-color 120ms ease-out,color 120ms ease-out,scale 150ms ease-out}
+  .theme button::after{content:"";position:absolute;left:0;right:0;top:50%;height:40px;transform:translateY(-50%)}
+  .theme button[aria-pressed="true"]{background:var(--brand-soft);color:var(--brand-ink);font-weight:600}
+  .theme button:active{scale:.96}
+
+  .nav-tabs{max-width:1360px;margin:0 auto;padding:0 20px;display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+  .nav-tabs::-webkit-scrollbar{display:none}
+  .nav-tabs button{all:unset;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);
+    padding:9px 14px;border-bottom:2px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:6px;
+    transition:color 120ms ease-out,border-color 120ms ease-out,scale 150ms ease-out}
+  .nav-tabs button:hover{color:var(--ink-2)}
+  .nav-tabs button[aria-selected="true"]{color:var(--brand-ink);border-bottom-color:var(--brand)}
+  .nav-tabs button:disabled{opacity:.35;cursor:not-allowed}
+  .nav-tabs button:active:not(:disabled){scale:.96}
+  .nav-tabs .badge{font-size:10.5px;font-weight:700;background:var(--critical);color:#fff;border-radius:999px;padding:0 6px;line-height:16px;min-width:16px;text-align:center}
+  .nav-tabs button[aria-selected="true"] .badge{background:var(--critical)}
+  .panel[hidden]{display:none!important}
+
+  /* ---- 优先排查 callout（沿用参考看板 .prio 语汇） ---- */
+  .prio{display:flex;gap:14px;align-items:flex-start;border-radius:12px;padding:14px 16px;margin-bottom:14px;
+    background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--critical);box-shadow:var(--shadow)}
+  .prio.ok{border-left-color:var(--good)}
+  .prio.warn{border-left-color:var(--warning)}
+  .prio .lead{font-size:11.5px;color:var(--muted);letter-spacing:.03em;text-transform:uppercase;margin-bottom:4px}
+  .prio .big{font-size:15.5px;font-weight:700;line-height:1.4;text-wrap:balance}
+  .prio .why{font-size:12.5px;color:var(--ink-2);margin-top:6px;line-height:1.65;text-wrap:pretty}
+  .prio .why b{color:var(--ink)}
+  .prio .tag{display:inline-block;font-size:11.5px;font-weight:700;color:#fff;background:var(--critical);border-radius:7px;padding:2px 9px;margin-left:4px}
+
+  /* ---- 大环节瀑布 ---- */
+  .wf-row{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line-2)}
+  .wf-row:last-child{border-bottom:0}
+  .wf-row.worst{background:color-mix(in srgb,var(--critical) 5%,transparent);
+    margin:0 -10px;padding-left:10px;padding-right:10px;border-radius:8px}
+  .wf-lab{width:240px;flex:none;font-size:12.5px}
+  .wf-lab .code{display:inline-block;min-width:19px;height:19px;line-height:19px;text-align:center;border-radius:5px;
+    background:var(--brand-soft);color:var(--brand-ink);font-size:11px;font-weight:700;margin-right:7px}
+  .wf-lab .nm{font-weight:600}
+  .wf-lab .sm{color:var(--muted);font-size:11px;margin-top:2px}
+  .wf-track{flex:1;height:22px;border-radius:5px;background:var(--surface-2);position:relative;overflow:hidden;min-width:70px}
+  .wf-track i{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--brand)}
+  .wf-track i.dim{background:var(--mid)}
+  .wf-track u{position:absolute;top:0;bottom:0;border-left:2px dashed var(--muted);text-decoration:none}
+  .wf-val{width:210px;flex:none;text-align:right;font-size:12px;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+  .wf-val b{color:var(--ink);font-size:12.5px}
+  .wf-val .up{color:var(--good)} .wf-val .dn{color:var(--critical)}
+  .wf-val .ctb{display:block;font-size:11px;color:var(--muted);margin-top:1px}
+  @media(max-width:900px){.wf-lab{width:170px}.wf-val{width:140px}}
+
+  /* ---- 异常明细：筛选条 ---- */
+  .filterbar{position:sticky;top:84px;z-index:15;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;
+    background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(8px);
+    border:1px solid var(--line);border-radius:12px;padding:11px 14px;margin-bottom:14px;box-shadow:var(--shadow)}
+  .filterbar select,.filterbar input[type=text]{min-width:120px}
+
+  /* ---- 重点商户 ---- */
+  .tm-head{font-size:14px;font-weight:700;margin:0 0 10px;display:flex;align-items:baseline;gap:8px}
+  .tm-head .cnt{font-size:12px;font-weight:400;color:var(--muted)}
+  .tm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:10px;margin-bottom:16px}
+  /* 严重度靠 data-sev 分档，不再是六张一律红。--sev 由下面各档赋值，
+     左边框、序号徽标、影响数字、量级条统统引用它，改一处就全跟着走。 */
+  /* 圆角 13px = 里面 .tm-bar 的等效圆角 2px（999px 的药丸，但只有 4px 高）+ 11px 内边距。
+     同心圆角：外圆角 = 内圆角 + padding，两层贴这么近的时候不算会显得内层被「掐」住。 */
+  .tm{--sev:var(--muted);
+    background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--sev);
+    border-radius:13px;padding:11px 13px;box-shadow:var(--shadow);cursor:pointer;text-align:left;
+    display:flex;flex-direction:column;gap:5px;font:inherit;width:100%;
+    transition:border-color 120ms ease-out,scale 150ms ease-out}
+  .tm[data-sev="crit"]{--sev:var(--critical)}
+  .tm[data-sev="serious"]{--sev:var(--serious)}
+  .tm[data-sev="warn"]{--sev:var(--warning)}
+  .tm[data-sev="low"]{--sev:var(--muted)}
+  .tm:hover{border-color:var(--sev)}
+  .tm:active{scale:.96}
+  .tm:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+  .tm .rk{font-size:10.5px;font-weight:700;color:#fff;background:var(--sev);border-radius:999px;
+    width:17px;height:17px;line-height:17px;text-align:center;flex:none}
+  .tm .nm{font-size:13.5px;font-weight:700;display:flex;align-items:center;gap:7px;min-width:0}
+  /* 商户名是打码的（FE****…），一串星号没有信息量却最宽最重 —— 截断，别让它抢主角 */
+  .tm .who{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .tm .meta{font-size:11.5px;color:var(--muted)}
+  .tm .meta .mid{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  /* 影响数字才是这张卡的主角 */
+  .tm .imp{font-size:22px;font-weight:700;color:var(--sev);
+    font-family:var(--mono);font-variant-numeric:tabular-nums;line-height:1.1}
+  .tm .imp small{font-size:11px;font-weight:600;font-family:var(--ui);color:var(--muted);margin-left:3px}
+  /* 长度按本组最大值归一化 —— 不读数字也能看出彼此差多远 */
+  .tm-bar{height:4px;border-radius:999px;background:var(--mid);overflow:hidden}
+  .tm-bar i{display:block;height:100%;border-radius:999px;background:var(--sev)}
+  .tm .why{font-size:11.5px;color:var(--ink-2);line-height:1.5;text-wrap:pretty}
+  .hl{animation:hlFlash 1.6s ease-out}
+  @keyframes hlFlash{0%,30%{background:color-mix(in srgb,var(--warning) 26%,transparent)}100%{background:transparent}}
+  @media (prefers-reduced-motion:reduce){.hl{animation:none;outline:2px solid var(--warning)}}
+
+  .role{font-size:10.5px;font-weight:700;border-radius:5px;padding:1px 6px;white-space:nowrap}
+  .role.根因{background:var(--crit-soft);color:var(--crit-on)}
+  .role.已解释{background:var(--surface-2);color:var(--muted)}
+  .role.未解释{background:var(--warn-soft);color:var(--warn-on)}
+  .role.局部{background:var(--info-soft);color:var(--info-on)}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+  .card.pad{padding:16px 18px}
+  .card h2{font-size:13px;margin:0 0 12px;color:var(--ink-2);font-weight:600;letter-spacing:.02em;text-transform:uppercase;text-wrap:balance}
+  .stack{display:flex;flex-direction:column;gap:14px}
+
+  .hint{font-size:12px;color:var(--muted);text-wrap:pretty}
+  .up-cell{border:1px dashed var(--line);border-radius:11px;padding:16px 16px;background:var(--surface-2);display:flex;flex-direction:column;gap:9px}
+  .up-t{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .up-tag{font-size:11px;font-weight:600;color:var(--brand-ink);background:var(--brand-soft);border-radius:999px;padding:2px 9px}
+  .up-cell input[type=file]{font:inherit;max-width:100%}
+
+  /* control bar */
+  .controls{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--surface) 92%,transparent);
+    backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin-bottom:14px}
+  .controls>summary{cursor:pointer;font-size:12px;color:var(--ink-2);padding:2px 0;
+    list-style:none;display:flex;align-items:center;gap:8px;user-select:none}
+  .controls>summary::-webkit-details-marker{display:none}
+  .controls>summary::before{content:'▸';color:var(--muted);font-size:10px;transition:transform .15s}
+  .controls[open]>summary::before{transform:rotate(90deg)}
+  .controls>summary .cur{font-family:var(--mono);font-variant-numeric:tabular-nums;
+    color:var(--muted);font-size:11.5px}
+  .controls[open] .ctl-row{margin-top:12px}
+  .ctl-row{display:flex;gap:16px 20px;align-items:flex-end;flex-wrap:wrap}
+  .field{display:flex;flex-direction:column;gap:5px}
+  .field>span{font-size:11px;color:var(--muted);letter-spacing:.02em}
+  input[type=number],select{height:34px;padding:0 10px;border:1px solid var(--line);border-radius:8px;
+    background:var(--surface);color:inherit;font:inherit;min-width:120px}
+  input[type=number]{width:96px;min-width:0;font-variant-numeric:tabular-nums}
+  button.btn{height:34px;padding:0 15px;border:0;border-radius:8px;background:var(--brand);color:#fff;font:inherit;font-weight:600;cursor:pointer;
+    transition:background-color 120ms ease-out,scale 150ms ease-out}
+  button.btn.ghost{background:var(--surface);border:1px solid var(--line);color:var(--ink)}
+  button.btn:disabled{opacity:.45;cursor:not-allowed}
+  button.btn:active:not(:disabled){scale:.96}
+
+  /* KPI */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)}
+  .kpi .k{font-size:12px;color:var(--muted);margin-bottom:7px;display:flex;align-items:center;gap:6px}
+  .kpi .v{font-size:26px;font-weight:700;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
+  .kpi .d{font-size:12px;margin-top:6px;color:var(--ink-2)}
+  .v.good{color:var(--good)} .v.warning{color:var(--warning)} .v.serious{color:var(--serious)} .v.critical{color:var(--critical)}
+
+  /* anomaly blocks */
+  .banner{border-radius:12px;padding:14px 16px;font-size:13.5px;display:flex;align-items:center;gap:10px}
+  .banner.ok{background:var(--brand-soft);color:var(--brand-ink)}
+  .banner.warn{background:var(--warn-soft);color:var(--warn-on)}
+
+  .sec-title{font-size:14px;font-weight:700;margin:20px 0 10px;display:flex;align-items:center;gap:8px}
+  .sec-title .cnt{font-size:12px;font-weight:400;color:var(--muted)}
+
+  .src-block{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:12px;background:var(--surface)}
+  .src-head{background:var(--surface-2);padding:10px 15px;font-weight:700;font-size:13.5px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+  .metric-block{padding:11px 15px;border-bottom:1px solid var(--line-2)}
+  .metric-block:last-child{border-bottom:0}
+  .metric-head{font-size:13px;font-weight:600;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .metric-head .mv{font-variant-numeric:tabular-nums;color:var(--ink-2);font-weight:500;font-size:12.5px}
+  .pill{display:inline-block;font-size:11.5px;font-weight:700;color:#fff;border-radius:7px;padding:2px 8px}
+  /* 涨 = 好，用 --good。以前 rise 是 --serious（橙），把「这个环节在拉升」
+     显示成一条警告，和下面表格里 +0.289% 的绿色也自相矛盾。 */
+  .pill.drop{background:var(--critical)} .pill.rise{background:var(--good)}
+  .tag-warn{font-size:11px;font-weight:600;color:var(--critical);border:1px solid var(--critical);border-radius:6px;padding:1px 6px}
+
+  .bl-tier{font-size:11px;border-radius:6px;padding:1px 6px;white-space:nowrap}
+  .bl-tier.own{background:var(--good-soft);color:var(--good-on)}
+  .bl-tier.mix{background:var(--surface-2);color:var(--muted)}
+  .bl-tier.nomix{background:var(--warn-soft);color:var(--warn-on)}
+
+  /* ---- 水平信号（B3）---- */
+  .lv-card .lv-head{font-weight:700;font-size:13px}
+  .lv-card .cnt{color:var(--muted);font-weight:500;font-size:12px}
+  .lv-row{display:flex;gap:10px;align-items:baseline;padding:3px 0;font-variant-numeric:tabular-nums;
+    border-top:1px solid var(--line-2)}
+  .lv-row:first-of-type{border-top:0}
+  .lv-who{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lv-run{font-size:11px;color:var(--warn-on);background:var(--warn-soft);border-radius:6px;padding:1px 6px;margin-left:6px}
+  .lv-v{flex:none;min-width:72px;text-align:right}
+  .lv-cut{flex:none;min-width:118px;text-align:right}
+  .lv-med{flex:none;min-width:88px;text-align:right}
+  .lv-gap{flex:none;min-width:66px;text-align:right;font-weight:700}
+  .lv-ord{flex:none;min-width:92px;text-align:right}
+  .lv-gap.down{color:var(--critical)} .lv-gap.up{color:var(--serious)}
+  @media(max-width:720px){ .lv-cut,.lv-med{display:none} }
+  @media(max-width:560px){ .lv-gap{display:none} }
+
+  /* ---- 多期趋势（B5）---- */
+  .tr-legend{display:flex;flex-wrap:wrap;gap:14px;margin:2px 0 6px;font-size:12px;color:var(--ink-2)}
+  .tr-lg{display:inline-flex;align-items:center;gap:6px}
+  /* 线图的图例 key 用线不用色块 —— 图例要长得像它代表的那个标记 */
+  .tr-lg i{width:15px;height:3px;border-radius:2px;flex:none}
+  .tr-box{position:relative}
+  .tr-cap{font-size:12px;color:var(--ink-2);font-weight:600;margin:8px 0 0}
+  .tr-cap .hint{font-weight:400}
+  .tr-svg{width:100%;height:auto;display:block;font-family:inherit;touch-action:none}
+  .tr-svg:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:8px}
+  .tr-svg text{pointer-events:none}
+  .tr-ax{fill:var(--muted);font-size:10.5px;font-variant-numeric:tabular-nums}
+  .tr-grid{stroke:var(--line-2);stroke-width:1}
+  .tr-line{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+  .tr-line.part{stroke-dasharray:4 3}
+  /* 圆点的 2px 描边和底色同色：两条线交叉时点还认得出是哪条的 */
+  .tr-dot,.tr-hit-dot{stroke:var(--surface);stroke-width:2}
+  .tr-hit-dot{pointer-events:none}
+  .tr-end{fill:var(--ink-2);font-size:11px}
+  .tr-cross{stroke:var(--muted);stroke-width:1;opacity:.5;pointer-events:none}
+  .tr-hit{fill:transparent;cursor:crosshair}
+  .tr-tip{position:absolute;z-index:5;min-width:200px;max-width:280px;background:var(--surface);
+    border:1px solid var(--line);border-radius:9px;box-shadow:var(--shadow);padding:8px 10px;
+    font-size:12px;pointer-events:none}
+  .tr-tip-h{font-weight:700;color:var(--ink);margin-bottom:4px;font-variant-numeric:tabular-nums}
+  .tr-tip-r{display:flex;align-items:center;gap:6px;padding:1px 0;font-variant-numeric:tabular-nums}
+  .tr-tip-r i{width:12px;height:3px;border-radius:2px;flex:none}
+  .tr-tip-r .n{color:var(--ink-2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tr-tip-r b{color:var(--ink)}
+  .tr-tip-r .q{color:var(--muted);min-width:58px;text-align:right}
+  /* 四个大环节固定 2×2 —— auto-fit 在常见宽度上会排成 3+1，最后一张孤零零占一整行 */
+  .tr-grid-sm{display:grid;grid-template-columns:1fr;gap:2px 18px;margin-top:6px}
+  @media(min-width:860px){ .tr-grid-sm{grid-template-columns:1fr 1fr} }
+  .tr-tbl{margin-top:10px} .tr-tbl summary{cursor:pointer}
+  .tr-tbl table{border-collapse:collapse;width:100%;font-size:12px;font-variant-numeric:tabular-nums;margin-top:6px}
+  .tr-tbl th,.tr-tbl td{padding:4px 9px;text-align:right;border-bottom:1px solid var(--line-2);white-space:nowrap}
+  .tr-tbl th{color:var(--muted);font-weight:500;font-size:11px}
+  .tr-tbl td:first-child,.tr-tbl td:nth-child(2),.tr-tbl th:first-child,.tr-tbl th:nth-child(2){text-align:left}
+
+  /* ---- 支付前 / 支付中 两段拆账（B7）----
+     ⚠️ 这两段**不配新的分类色**。页面已经有一套按来源固定的三支色（--s1/--s2/--s3），
+     再加一对色相跑 dataviz 校验是硬 FAIL（紫 vs 趋势蓝 deutan ΔE 0.5；
+     青 vs 绿 正常视觉 ΔE 9.5），深色模式的明度带也塞不下同色相两档。
+     所以：同一支品牌色，第二段加 45° 斜纹（dataviz 指定的 CVD/打印兜底），
+     再加段内直标 + 表格视图。 */
+  .pr-lead{font-size:13px;color:var(--ink-2);margin:2px 0 8px;line-height:1.7}
+  .pr-lead b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .pr-legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:11.5px;color:var(--ink-2);margin-bottom:10px}
+  .pr-legend span{display:inline-flex;align-items:center;gap:6px}
+  .pr-legend i{width:16px;height:11px;border-radius:3px;flex:none;background:var(--brand)}
+  .pr-legend i.mid{background:repeating-linear-gradient(45deg,var(--brand) 0 3px,var(--surface) 3px 6px)}
+  .pr-row{display:grid;grid-template-columns:1fr;gap:3px;padding:9px 0;border-top:1px solid var(--line-2)}
+  @media(min-width:860px){ .pr-row{grid-template-columns:210px 1fr 300px;align-items:center;gap:14px} }
+  .pr-name{font-size:12.5px;font-weight:600;color:var(--ink)}
+  .pr-name .hint{display:block;font-weight:400;font-size:11px}
+  /* 外层宽度 = 该来源总流失 / 最大总流失，各来源之间可比；内层两段是它的占比 */
+  .pr-track{display:flex;height:22px;border-radius:5px;overflow:hidden;background:var(--surface-2)}
+  .pr-track i{display:flex;align-items:center;justify-content:center;min-width:2px;
+    font-size:11px;font-weight:600;color:#fff;font-style:normal;white-space:nowrap;overflow:hidden}
+  .pr-track i.pre{background:var(--brand)}
+  /* 第二段：同色 + 斜纹。斜纹的底色用 surface，深浅两套主题各自跟着走 */
+  .pr-track i.mid{background:repeating-linear-gradient(45deg,var(--brand) 0 5px,color-mix(in srgb,var(--brand) 55%,var(--surface)) 5px 10px)}
+  .pr-track i.pre+i.mid{box-shadow:inset 2px 0 0 var(--surface)}   /* 两段之间 2px 同底色缝 */
+  .pr-val{font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums;line-height:1.6}
+  .pr-val b{color:var(--ink)}
+
+  .tbl-wrap{overflow-x:auto}
+  .tbl-scroll{overflow-x:auto}
+  table.dtl{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums}
+  table.dtl th,table.dtl td{padding:6px 10px;text-align:right;border-bottom:1px solid var(--line-2);white-space:nowrap}
+  table.dtl th{color:var(--muted);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.02em}
+  table.dtl td:first-child,table.dtl th:first-child,
+  table.dtl td.l,table.dtl th.l{text-align:left}
+  /* 影响列的颜色按**整表是拉升还是拖累**定，不按每行数字的正负号。
+     符号和好坏不是一回事：摩擦类指标（3DS交易占比之类）跌了才是好事，
+     那种行的「影响比率」是负数却是正向贡献。而下钻本来就按方向筛过行了，
+     所以整表同色才是对的 —— 以前 .pos 一律染成 --serious（橙），
+     等于把「这个商户帮上忙了」显示成一条警告。 */
+  table.dtl td.imp{font-weight:700}
+  table.dtl.down td.imp{color:var(--critical)}
+  table.dtl.up   td.imp{color:var(--good)}
+  table.dtl .bx{position:relative;min-width:78px}
+  table.dtl .bx i{position:absolute;right:0;top:50%;transform:translateY(-50%);height:62%;
+    border-radius:3px;z-index:0;background:var(--mid)}
+  table.dtl.down .bx i{background:var(--crit-soft)}
+  table.dtl.up   .bx i{background:var(--good-soft)}
+  table.dtl .bx span{position:relative;z-index:1}
+  .empty{color:var(--muted);font-size:12.5px;padding:22px 8px;text-align:center}
+
+  /* broadcast */
+  .tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
+  .tab{all:unset;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2);padding:7px 14px;border-radius:8px;background:var(--surface-2);border:1px solid var(--line);
+    transition:background-color 120ms ease-out,color 120ms ease-out,border-color 120ms ease-out,scale 150ms ease-out}
+  .tab.on{background:var(--brand-soft);color:var(--brand-ink);border-color:color-mix(in srgb,var(--brand) 25%,transparent)}
+  .tab:active{scale:.96}
+  pre.out{white-space:pre-wrap;word-break:break-word;background:var(--surface-2);border:1px solid var(--line);
+    border-radius:10px;padding:15px 17px;font:12.5px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;margin:0;max-height:520px;overflow:auto}
+  .row-btns{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+
+  /* report table */
+  details.report>summary{cursor:pointer;padding:14px 18px;font-weight:600;font-size:14px;list-style:none;display:flex;justify-content:space-between;align-items:center}
+  details.report>summary::-webkit-details-marker{display:none}
+  details.report>summary .cnt{color:var(--muted);font-weight:400;font-size:12px}
+  .report-body{padding:0 18px 18px}
+  table.grid-tbl{border-collapse:collapse;width:100%;font-size:12px;font-variant-numeric:tabular-nums}
+  table.grid-tbl th,table.grid-tbl td{border:1px solid var(--line-2);padding:6px 9px;text-align:right;white-space:nowrap}
+  table.grid-tbl th{background:var(--surface-2);position:sticky;top:0;font-weight:600}
+  table.grid-tbl td.l,table.grid-tbl th.l{text-align:left;position:sticky;left:0;background:var(--surface);z-index:1}
+
+  /* chain funnel */
+  .fbar{display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid var(--line-2)}
+  .fbar:last-child{border-bottom:0}
+  .fbar .flab{width:210px;flex:none;font-size:12.5px}
+  .fbar .flab .fn{color:var(--muted);font-size:11px}
+  .fbar .ftrack{flex:1;height:20px;border-radius:5px;background:var(--surface-2);position:relative;overflow:hidden;min-width:80px}
+  .fbar .ftrack i{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--brand);min-width:2px}
+  .fbar .fval{width:170px;flex:none;text-align:right;font-size:12px;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+  .fbar .fval b{color:var(--ink)}
+
+  .loadmsg{margin-top:12px}
+  .foot{margin-top:30px;color:var(--muted);font-size:11.5px;line-height:1.7}
+  code.k{background:var(--surface-2);border:1px solid var(--line);border-radius:5px;padding:1px 5px;font:11.5px ui-monospace,Menlo,monospace}
+
+  /* collapsible block cards (baseline / feishu) */
+  details.blk{margin-bottom:14px}
+  details.blk>summary{cursor:pointer;padding:15px 18px;font-weight:700;font-size:14px;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px}
+  details.blk>summary::-webkit-details-marker{display:none}
+  details.blk>summary .cnt{color:var(--muted);font-weight:400;font-size:12px}
+  details.blk>summary::after{content:"▸";color:var(--muted);font-size:12px;transition:transform .15s}
+  details.blk[open]>summary::after{transform:rotate(90deg)}
+  .blk-body{padding:0 18px 18px}
+  .blk-body .lead{font-size:12.5px;color:var(--ink-2);margin:0 0 14px;line-height:1.6}
+
+  input[type=text],input[type=password],textarea{border:1px solid var(--line);border-radius:8px;background:var(--surface);color:inherit;font:inherit}
+  input[type=text],input[type=password]{height:34px;padding:0 10px}
+  textarea{width:100%;min-height:60px;padding:8px 10px;font:12px/1.5 ui-monospace,Menlo,monospace;resize:vertical}
+  .cfg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px}
+  .cfg-grid label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--muted)}
+  .cfg-grid label input{width:100%}
+  label.chk{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--ink-2)}
+  label.chk input{width:16px;height:16px;accent-color:var(--brand)}
+  .privacy{font-size:12px;border-radius:9px;padding:9px 13px;background:var(--warn-soft);color:var(--warn-on);margin-bottom:14px;line-height:1.55}
+  .autosync{border:1px solid color-mix(in srgb,var(--brand) 30%,transparent);background:var(--brand-soft);
+    border-radius:10px;padding:11px 14px;margin-bottom:14px;display:flex;flex-direction:column;gap:6px}
+  .autosync .hint{color:var(--brand-ink);opacity:.85;line-height:1.55}
+  .subhead{font-size:13px;font-weight:700;margin:16px 0 8px;padding-top:14px;border-top:1px solid var(--line-2)}
+  .subhead:first-of-type{border-top:0;padding-top:0}
+  .status{font-size:12.5px;margin-top:8px;min-height:16px}
+  .status.ok{color:var(--good)} .status.err{color:var(--critical)}
+  .bl-band{font-variant-numeric:tabular-nums}
+  .bl-old{color:var(--muted)}
+  .bl-rec{font-weight:700}
+  .bl-rec.drop{color:var(--critical)} .bl-rec.rise{color:var(--good)}
+  tr.bl-insuf td{color:var(--muted);font-style:italic}
+</style>
+
+<!-- ===================== 顶部导航栏 ===================== -->
+<div class="navbar">
+  <div class="nav-top">
+    <div class="brand">转化率数据监控 <span class="ver">v3</span></div>
+    <div class="seg" id="periodSeg" role="group" aria-label="周期">
+      <button data-period="日报" aria-pressed="true" disabled>日</button>
+      <button data-period="周报" aria-pressed="false" disabled>周</button>
+      <button data-period="月报" aria-pressed="false" disabled>月</button>
+    </div>
+    <div class="datesel" id="dateSel" hidden>
+      <label>本期<select id="selT" aria-label="本期"></select></label>
+      <label>对比<select id="selY" aria-label="上期"></select></label>
+      <button type="button" class="lnk" id="selLatest" title="回到最新两期">最新</button>
+    </div>
+    <span class="hint" id="periodInfo"></span>
+    <div class="nav-spacer"></div>
+    <div class="theme" role="group" aria-label="主题">
+      <button data-theme-set="light" aria-pressed="false">浅色</button>
+      <button data-theme-set="dark" aria-pressed="false">深色</button>
+      <button data-theme-set="auto" aria-pressed="true">自动</button>
+    </div>
+  </div>
+  <div class="nav-tabs" id="navTabs" role="tablist">
+    <button data-panel="upload" aria-selected="true">数据源</button>
+    <button data-panel="overview" aria-selected="false" disabled>概览</button>
+    <button data-panel="detail"   aria-selected="false" disabled>异常明细 <span class="badge" id="tabBadge" hidden></span></button>
+    <button data-panel="cast"     aria-selected="false" disabled>播报素材</button>
+    <button data-panel="chain"    aria-selected="false" disabled>链路精算</button>
+    <button data-panel="baseline" aria-selected="false" disabled>业务基准线</button>
+    <button data-panel="feishu"   aria-selected="false" disabled>飞书同步</button>
+    <button data-panel="table"    aria-selected="false" disabled>全量底表</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <!-- ========== 面板：数据源 ========== -->
+  <div class="panel" id="p-upload">
+    <div class="card pad">
+      <div class="up-cell">
+        <div class="up-t">统计源文件（.xlsx） <span class="up-tag">需含【场景维度】+【场景×商户维度】两个 sheet</span></div>
+        <input type="file" id="file" accept=".xlsx,.xls">
+        <span class="hint">按「时间类别」自动识别日报 / 周报 / 月报，每个周期需至少两期数据用于环比。来源为独立站API直连 / 独立站标准收银台。选择文件后自动解析。</span>
+      </div>
+      <div class="loadmsg" id="loadMsg"></div>
+    </div>
+    <div class="foot" id="foot" hidden>
+      <b>口径说明</b>：漏斗依赖树中「子指标分母 = 父指标分子（单量）」，已用大盘真值验证逆算 100% 还原（误差 ≤ 取整 ±1 单）。
+      影响比率 = (站点PO ÷ 来源总PO) × (站点指标本期 − 上期)。「是否&gt;PO = 是」表示该环节含退款 / 重试，属正常。<br>
+      <b>分层归因</b>：因果自下而上——子环节恶化才导致大环节恶化；排查动线自上而下——大环节负责影响排序（拉低整体多少 pt），小环节负责归因，商户/站点负责定位。
+      告警按<b>根因</b>计数：某项若已被其下级异常解释，则不重复计入。
+      本工具仅做异常探测与定位，<b>不含归因结论</b>。
+    </div>
+  </div>
+
+  <!-- results：可见性由各 panel 自己控制，故此容器不再整体隐藏 -->
+  <div id="app">
+    <!-- controls（探测阈值，跨面板共用） -->
+    <!-- 阈值是个几乎不动的设置项，以前却占着页面最顶上的黄金位置。
+         收进 details 默认折起，摘要上直接写当前值，不用展开也知道现在按什么在判。 -->
+    <details class="controls" id="ctlBar" hidden>
+      <summary>探测阈值 <span class="cur" id="thCur">-5 / -3 / -2 / +2</span></summary>
+      <div class="ctl-row">
+        <label class="field"><span>大环节阈值 (≤)</span><input type="number" id="thMain" step="0.5" value="-5"><span class="hint">%，默认 -5</span></label>
+        <label class="field"><span>子环节阈值 (≤)</span><input type="number" id="thSub" step="0.5" value="-3"><span class="hint">%，默认 -3</span></label>
+        <label class="field"><span>孙环节阈值 (≤)</span><input type="number" id="thLeaf" step="0.5" value="-2"><span class="hint">%，默认 -2</span></label>
+        <label class="field"><span>摩擦类阈值 (≥)</span><input type="number" id="thFric" step="0.5" value="2"><span class="hint">%，默认 +2</span></label>
+        <button class="btn primary" id="recalc">重新探测</button>
+        <span class="hint" style="align-self:center">仅在该指标无足够历史样本时启用；有基准线时以基准线为准。</span>
+      </div>
+    </details>
+
+    <!-- ========== 面板：概览 ========== -->
+    <div class="panel" id="p-overview" hidden>
+      <div class="kpis" id="kpis"></div>
+      <div id="prio"></div>
+      <!-- 支付前 / 支付中 两段拆账（B7）：放在「优先排查」后面，因为它回答的是
+           「这一期的流失该找谁」—— 是下面所有漏斗块的框，先看它再往下看。 -->
+      <div id="porate"></div>
+      <!-- 水平信号（B3）：环比之外的第二类判据。放在「优先排查」后面 ——
+           都是「今天该看什么」，但样式分开，两种判据回答的不是同一个问题。 -->
+      <div id="level"></div>
+      <!-- 多期趋势（B5）：整个页面其余部分只认「两期对比」，
+           而「每期掉 0.3pt、十期掉 3pt」这类问题在两期之间永远看不出来。 -->
+      <div id="trend"></div>
+      <!-- 掉量 / 新增：只在一期出现的商户和来源。buildMerged 是内连接，
+           这两批算不出环比，以前是被直接丢掉的（第四轮 A2 / A3）。 -->
+      <div id="churn"></div>
+      <!-- 待观察商户：成功率低 / 单量少 / 新入网。**不是告警**（B14），
+           所以和「优先排查」分开放、样式也不一样。 -->
+      <div id="watch"></div>
+      <!-- 每个来源一块：独立站API直连 / 独立站标准收银台 各自的大环节漏斗 -->
+      <div id="sourceBlocks" class="stack"></div>
+      <div class="legend" style="margin-top:10px">
+        <span><i style="background:var(--brand)"></i>本期累计转化（逐环节相乘收窄）</span>
+        <span><b style="border-left:2px dashed var(--muted);padding-left:4px"></b> 虚线 = 上期累计</span>
+        <span>「拉低整体」= 该环节对<b>该来源</b>总成功率环比的精确贡献，各环节相加恰等于该来源整体变动</span>
+      </div>
+      <div id="summary" style="margin-top:14px"></div>
+    </div>
+
+    <!-- ========== 面板：异常明细 ========== -->
+    <div class="panel" id="p-detail" hidden>
+      <!-- 重点商户：按影响绝对值聚合，最该找谁一眼看到 -->
+      <div id="topMerchants"></div>
+
+      <!-- 优先排查的商户下钻。放在筛选器之上：它不受筛选控制，
+           摆下面会让人以为筛选也管它。 -->
+      <div id="prioDrillWrap"></div>
+
+      <!-- 筛选：明细篇幅长，先收窄再看 -->
+      <div class="filterbar" id="filterBar">
+        <label class="field"><span>来源</span><select id="fSrc"><option value="">全部</option></select></label>
+        <label class="field"><span>大环节</span><select id="fStage"><option value="">全部</option></select></label>
+        <label class="field"><span>角色</span><select id="fRole">
+          <option value="">全部</option><option value="根因">根因</option><option value="未解释">⚠️ 未解释</option>
+          <option value="局部">局部</option><option value="已解释">已解释</option></select></label>
+        <label class="field"><span>维度</span><select id="fDim">
+          <option value="">合计行 + 站点</option><option value="total">仅合计行</option><option value="site">仅站点</option></select></label>
+        <label class="field" style="flex:1;min-width:160px"><span>商户 / 站点 / 指标 关键词</span>
+          <input type="text" id="fKw" placeholder="输入即筛选"></label>
+        <button class="btn ghost" id="fReset">重置</button>
+        <span class="hint" id="fCount" style="align-self:center"></span>
+      </div>
+
+      <div id="detailTotalWrap">
+        <div class="sec-title">一、合计行异常 <span class="cnt" id="totCnt"></span></div>
+        <div id="totalBlocks"></div>
+      </div>
+      <div id="detailSiteWrap">
+        <div class="sec-title">二、站点明细异常 <span class="cnt" id="siteCnt"></span></div>
+        <div id="siteBlocks"></div>
+      </div>
+      <div id="detailEmpty" hidden><div class="card pad"><div class="empty">没有符合筛选条件的异常。<button class="btn ghost" id="fReset2" style="margin-left:8px">重置筛选</button></div></div></div>
+    </div>
+
+    <!-- ========== 面板：播报素材 ========== -->
+    <div class="panel" id="p-cast" hidden>
+      <div class="card pad">
+        <div class="tabs" id="bcTabs">
+          <button class="tab on" data-bc="txt">群播报（纯文本）</button>
+          <button class="tab" data-bc="md">邮件 / 文档版（Markdown）</button>
+        </div>
+        <div class="row-btns">
+          <button class="btn ghost" id="copyBc">复制</button>
+          <button class="btn ghost" id="dlBc">下载</button>
+        </div>
+        <pre class="out" id="bcOut"></pre>
+      </div>
+
+      <!-- 第二条消息：待观察商户。**单独发一条**，不和上面那条混在一起（B14）——
+           两件事、两个受众，塞一条里飞书上会很难看。没人要盯时整块隐藏。 -->
+      <div class="card pad" id="watchCastWrap" style="margin-top:14px" hidden>
+        <div class="subhead">待观察商户清单 <span class="hint">单独发一条，不和上面那条混着</span></div>
+        <p class="lead" style="margin-bottom:10px">上面那条讲「今天出了什么事」，这条讲「这几家一直不对劲」——
+          它们常年低位或刚上量，任何阈值都不会触发，得有人盯。</p>
+        <div class="row-btns">
+          <button class="btn ghost" id="copyWatchCast">复制</button>
+          <button class="btn ghost" id="dlWatchCast">下载</button>
+        </div>
+        <pre class="out" id="watchCastOut"></pre>
+      </div>
+
+      <div class="card pad" style="margin-top:14px">
+        <div class="subhead">AI 总结 <span class="hint" id="aiHint"></span></div>
+        <p class="lead" style="margin-bottom:10px">把上面的播报素材 + 分层归因结论交给大模型，让它写一段可直接用的分析。
+          周报 / 月报用得最多 —— 那两个周期不推群、不写底账，看的就是这段总结。</p>
+        <div class="row-btns">
+          <button class="btn" id="aiBtn">生成 AI 总结</button>
+          <button class="btn ghost" id="aiCopy">复制提示词</button>
+          <input type="password" id="aiKey" placeholder="AI Key（直连用，不保存）" style="flex:1;min-width:170px">
+        </div>
+        <div class="status" id="aiStatus"></div>
+        <details id="aiManual" style="margin-top:10px">
+          <summary style="cursor:pointer;font-size:12.5px;color:var(--ink-2)">手动跑（复制提示词 → 粘到任意大模型 → 把回答粘回来）</summary>
+          <textarea id="aiPromptOut" readonly placeholder="点「复制提示词」后，完整提示词会显示在这里"
+                    style="width:100%;min-height:110px;margin-top:8px;font:inherit;font-size:12px"></textarea>
+          <textarea id="aiPaste" placeholder="把大模型的回答粘贴到这里"
+                    style="width:100%;min-height:110px;margin-top:8px;font:inherit;font-size:12px"></textarea>
+          <button class="btn" id="aiApply" style="margin-top:8px">应用粘贴的总结</button>
+        </details>
+        <pre class="out" id="aiOut" hidden></pre>
+      </div>
+    </div>
+
+    <!-- ========== 面板：链路精算 ========== -->
+    <div class="panel" id="p-chain" hidden>
+      <div class="card pad">
+        <div class="ctl-row" style="margin-bottom:12px">
+          <label class="field"><span>选择明细行</span><select id="chainSel" style="min-width:320px"></select></label>
+        </div>
+        <div id="chainView"></div>
+      </div>
+    </div>
+
+    <!-- ========== 面板：全量底表 ========== -->
+    <div class="panel" id="p-table" hidden>
+      <div class="card pad">
+        <div class="chart-head"><span class="t">全指标链式精算宽表</span><span class="s" id="reportCnt"></span></div>
+        <div class="row-btns"><button class="btn" id="export">导出 Excel（宽表 + 下钻明细）</button></div>
+        <div class="tbl-scroll" style="max-height:600px;overflow:auto"><div id="reportTable"></div></div>
+      </div>
+    </div>
+
+    <!-- ========== 面板：业务基准线 ========== -->
+    <div class="panel" id="p-baseline" hidden>
+      <div class="card pad">
+        <div class="chart-head"><span class="t">业务基准线 · 用历史数据替代拍脑袋阈值</span><span class="s" id="blCnt">未计算</span></div>
+        <p class="lead">上传<b>一批历史<span class="pd-hist">日报</span>文件</b>（可多选），系统汇总每个指标的历史「<span class="pd-dod">日环比</span>」分布，用<b>稳健统计</b>算出正常波动带：
+          正常带 = 历史中位数 ± <code class="k">k</code>×MAD（中位绝对偏差，抗离群）。据此给出每个指标数据驱动的告警阈值——
+          <b>通过类</b>看「跌破下界」、<b>摩擦类</b>看「涨破上界」。勾选后即用它替代层级兜底阈值重新探测。
+          <b>各周期独立</b>：周环比的正常波动天然大于日环比，日/周/月基准线互不共用。</p>
+        <div class="ctl-row" style="margin-bottom:12px">
+          <label class="field"><span>历史<span class="pd-hist">日报</span>文件（可多选，建议不含本期）</span><input type="file" id="blFiles" accept=".xlsx,.xls" multiple></label>
+          <label class="field"><span>k（带宽，默认 3）</span><input type="number" id="blK" step="0.5" value="3" style="width:90px"></label>
+          <label class="field"><span>最小业务波动 %（下限，默认 1）</span><input type="number" id="blMin" step="0.5" value="1" style="width:110px"></label>
+          <button class="btn" id="blCompute">计算基准线</button>
+          <!-- B11：本机 data/inbox/conversion/ 每天都在存报表，以前只能人手动多选文件 -->
+          <button class="btn ghost" id="blArchive" title="从本机邮箱存档里取历史报表，不用手动选文件">用本机存档计算</button>
+        </div>
+        <div class="hint" id="blArchiveNote" style="margin:-6px 0 10px">
+          本机存档由邮箱自动化每天落盘（<code>data/inbox/conversion/</code>）。
+          ⚠️ 报表是<b>滚动窗口</b>（每份带最近若干期），连着的存档高度重叠 ——
+          取的时候会<b>按期次去重</b>，并在存档里<b>均匀取样</b>，同样的文件数覆盖更多期次。
+        </div>
+        <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+          <label class="chk"><input type="checkbox" id="blUse">使用基准线阈值探测（替代固定阈值）</label>
+          <button class="btn ghost" id="blExport">导出 baseline.json</button>
+          <label class="btn ghost" style="cursor:pointer">导入 baseline.json<input type="file" id="blImport" accept=".json" hidden></label>
+        </div>
+        <div class="status" id="blStatus"></div>
+        <div id="baselineResult"></div>
+      </div>
+    </div>
+
+    <!-- ========== 面板：飞书同步 ========== -->
+    <div class="panel" id="p-feishu" hidden>
+      <div class="card pad">
+        <div class="chart-head"><span class="t">飞书同步 · 异常消息推送 + 多维表格记录</span><span class="s" id="fsCnt"></span></div>
+        <div class="privacy">⚠️ 本区功能会把本期数据<b>发送到飞书</b>（离开浏览器）。凭据仅保存在本机 localStorage、不上传。若浏览器直连被 CORS 拦截，可填自建代理，或用下方「复制 curl / 下载」手动推送。</div>
+
+        <div class="autosync">
+          <b>本次要发的内容</b>
+          <div class="status" id="fsSubject">尚未解析数据。</div>
+          <span class="hint">解析和切换日期都<b>不会</b>自动发飞书 —— 下面两个按钮点了才发。
+            切到别的周期或别的对比日期时，记得回来确认这里显示的是不是你想发的那一期。</span>
+        </div>
+
+        <div class="subhead">① 异常消息推送（群自定义机器人 Webhook）</div>
+        <div class="cfg-grid">
+          <label>Webhook 地址<input type="text" id="fsHook" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/xxxx"></label>
+          <label>签名密钥（可选，机器人「加签」时填）<input type="password" id="fsSecret" placeholder="加签 secret，可留空"></label>
+          <label>代理地址（可选，绕过 CORS）<input type="text" id="fsProxy" placeholder="留空则浏览器直连 Webhook"></label>
+        </div>
+        <div class="row-btns">
+          <button class="btn" id="fsSend">推送异常到飞书</button>
+          <button class="btn ghost" id="fsCopyCurl">复制 curl</button>
+          <label class="chk" style="margin-left:6px"><input type="checkbox" id="fsCardMode">用卡片格式（否则纯文本）</label>
+        </div>
+        <div class="status" id="fsStatus"></div>
+
+        <div class="subhead">② 数据变动记录（多维表格 Bitable）</div>
+        <p class="lead" style="margin-bottom:10px">把本期「来源 × 指标」的本期值 / 上期值 / 环比 / 是否异常 / 层级归属逐行写入多维表格，长期累积即为历史底账（也是基准线的数据来源）。
+          请先在表格中建好这些列（文本即可）：<code class="k">日期</code> <code class="k">周期</code> <code class="k">来源</code> <code class="k">指标</code> <code class="k">所属环节</code> <code class="k">层级</code> <code class="k">本期值</code> <code class="k">上期值</code> <code class="k">环比</code> <code class="k">是否异常</code> <code class="k">角色</code>。</p>
+        <div class="cfg-grid">
+          <label>app_token（多维表格 URL 里的 base id）<input type="text" id="fsApp" placeholder="bascnXXXXXXXX"></label>
+          <label>table_id（数据表 id，tbl 开头）<input type="text" id="fsTable" placeholder="tblXXXXXXXX"></label>
+          <label>tenant_access_token（粘贴，直连写入用）<input type="password" id="fsToken" placeholder="t-xxxx，或走代理/手动"></label>
+          <label>代理地址（可选，绕过 CORS）<input type="text" id="fsBaseProxy" placeholder="留空则直连 open.feishu.cn"></label>
+        </div>
+        <div class="row-btns">
+          <button class="btn" id="fsWrite">写入多维表格</button>
+          <button class="btn ghost" id="fsCopyRecCurl">复制写表 curl</button>
+          <button class="btn ghost" id="fsDlRec">下载记录 JSON</button>
+          <span class="hint" id="fsRecInfo" style="align-self:center"></span>
+        </div>
+        <div class="status" id="fsWriteStatus"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 自有代码已按分区注释拆成 ES module，见 static/js/conversion/README.md。
+     上面那段内联 SheetJS 是普通 <script>，先于本模块执行，window.XLSX 已就绪。 -->
+<script type="module" src="/static/js/conversion/main.js"></script>

@@ -6,3 +6,4 @@ __pycache__/
 *.bak
 node_modules/
 dist/
+看板/

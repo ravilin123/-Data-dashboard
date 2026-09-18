@@ -21,7 +21,7 @@ for f in $(python3 -c "import json;m=json.load(open('口径清单.json',encoding
 done
 
 # 这个仓库自己的
-for f in tests/golden.py tests/contract.py tests/server.py; do
+for f in tests/golden.py tests/contract.py tests/server.py tests/offline_board.py; do
   [ -f "$f" ] && run "$f" python3 "$f"
 done
 
