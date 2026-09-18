@@ -12,7 +12,6 @@ import json
 import re
 from pathlib import Path
 
-from . import offline, snapshot
 from .source import WorkbenchSource
 
 HERE = Path(__file__).resolve().parent.parent
@@ -84,6 +83,9 @@ def export_offline(date: str | None = None, *, out_dir: Path | None = None, get=
     落盘规矩同 export_day：看板_<date>.html + 看板.html（最新日期那份），只留 keep 份。
     """
     from datetime import datetime, timedelta, timezone
+    # 函数内 import：offline / snapshot 要工作台的四个页面和全部 JS，不在口径清单里、看板仓库没有它们；
+    # 放顶层的话同步过去的 dashboard.export 在那边一 import 就炸（server 只用 render / EMBED_TAG）
+    from . import offline, snapshot
     get = get or snapshot.default_getter()
     snap = snapshot.collect(get, date)
     got = [d for d in snap["dates"].values() if d]

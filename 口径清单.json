@@ -6,7 +6,7 @@
     "改这份清单 = 改「什么算口径层」，要在 docs/specs/看板/计划.md 里说清楚为什么。"
   ],
   "python": {
-    "_为什么": "纯算数：吃台账 / 报表行，吐结果或文本。不发、不写表、不调度。names.py 是 owner_name / MODES 的唯一出处（§2.18.96）。ledger.py 是台账的读写（看板服务要读同一种文件），它碰 mailbox 的两个函数改成了函数内 import。excel.py 要 pandas + openpyxl。 dashboard/ 是离线看板：offline.py 把四个页面原样嵌成单文件（importmap + data: 模块 + fetch 接管）、snapshot.py 抓接口响应（flask 只在函数内 import）、source.py / report.py 按契约拼三块日报给看板仓库的服务用。",
+    "_为什么": "纯算数：吃台账 / 报表行，吐结果或文本。不发、不写表、不调度。names.py 是 owner_name / MODES 的唯一出处（§2.18.96）。ledger.py 是台账的读写（看板服务要读同一种文件），它碰 mailbox 的两个函数改成了函数内 import。excel.py 要 pandas + openpyxl。 dashboard/ 里只同步 source.py / report.py / export.py（按契约拼三块日报 + render 嵌页，看板仓库的服务直接 import）；offline.py / snapshot.py 是离线看板，要工作台的四个页面和全部 JS，**留在工作台**（export.py 在函数内才 import 它们）。",
     "files": [
       "names.py",
       "churn/__init__.py",
@@ -29,9 +29,7 @@
       "dashboard/report.py",
       "dashboard/source.py",
       "dashboard/export.py",
-      "dashboard/__main__.py",
-      "dashboard/offline.py",
-      "dashboard/snapshot.py"
+      "dashboard/__main__.py"
     ]
   },
   "js": {
@@ -52,7 +50,7 @@
     ]
   },
   "tests": {
-    "_为什么": "只同步纯函数的用例。routes / config_form / page_refs 是页面和路由的；churn_weekly.py 和 order_monitor.py 连调度、发送一起测；no_real_writes.py 会去跑那九套写台账的（含没同步的）；run-unit.sh 列着页面那三条 —— 这些都留在工作台，看板仓库自己有一个按清单跑的 runner。",
+    "_为什么": "只同步纯函数的用例。routes / config_form / page_refs 是页面和路由的；churn_weekly.py 和 order_monitor.py 连调度、发送一起测；no_real_writes.py 会去跑那九套写台账的（含没同步的）；offline.py 要四个页面的全部 JS；run-unit.sh 列着页面那三条 —— 这些都留在工作台，看板仓库自己有一个按清单跑的 runner。",
     "files": [
       "tests/_harness.mjs",
       "tests/_tmpdata.py",
@@ -87,8 +85,7 @@
       "tests/churn_overview.py",
       "tests/trade.py",
       "tests/trade_msg.py",
-      "tests/page.mjs",
-      "tests/offline.py"
+      "tests/page.mjs"
     ]
   },
   "docs": {
