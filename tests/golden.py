@@ -53,7 +53,7 @@ for c in cases:
 print("\n[2] ★ 重跑口径层，和 expected.json 逐字节一致")
 r = subprocess.run([sys.executable, str(ROOT / "scripts" / "生成黄金用例.py"), "--check"], capture_output=True, text=True, cwd=str(ROOT))
 print("   " + (r.stdout.strip().replace("\n", "\n   ")))
-check("--check 通过", r.returncode == 0, r.stderr.strip().splitlines()[-1:] if r.stderr.strip() else "")
+check("--check 通过", r.returncode == 0, "\n      ".join(r.stderr.strip().splitlines()[-8:]) if r.stderr.strip() else "")
 
 print("\n[3] 一处刻意的边界要真的在 expected 里")
 def load(fam, name):

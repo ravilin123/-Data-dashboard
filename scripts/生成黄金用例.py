@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -486,11 +487,19 @@ def run(family: str, inp: dict, settings: dict):
         return {"text": M.group_text(OV.build(inp["days"], inp["date"]), settings)}
     if family in JS_FAMILIES:
         import subprocess
-        r = subprocess.run(["node", str(ROOT / "scripts" / "golden_js.mjs")],
-                           input=json.dumps({"family": family, "input": inp, "settings": settings}, ensure_ascii=False),
-                           capture_output=True, text=True, cwd=str(ROOT))
+        import tempfile
+        # 请求走临时文件不走 stdin：Windows 上 node 同步读 stdin 会炸（坑-看板.md §D4）
+        fd, req_path = tempfile.mkstemp(prefix="golden_req_", suffix=".json")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump({"family": family, "input": inp, "settings": settings}, f, ensure_ascii=False)
+        try:
+            r = subprocess.run(["node", str(ROOT / "scripts" / "golden_js.mjs"), req_path],
+                               capture_output=True, text=True, encoding="utf-8", cwd=str(ROOT))
+        finally:
+            os.unlink(req_path)
         if r.returncode != 0:
-            raise RuntimeError(f"{family}: node 跑挂了：{(r.stderr or '').strip()[-400:]}")
+            tail = "\n".join((r.stderr or "").strip().splitlines()[-8:])
+            raise RuntimeError(f"{family}: node 跑挂了（退出码 {r.returncode}）：\n{tail}")
         return json.loads(r.stdout)
     if family == "order_monitor_classify":
         try:
