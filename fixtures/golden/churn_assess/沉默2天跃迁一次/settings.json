@@ -1,0 +1,17 @@
+{
+ "churn": {
+  "drop_page": -0.5,
+  "drop_push": -0.7,
+  "gateway_incident_min": 3,
+  "gateway_incident_top_n": 50,
+  "recover_ratio": 0.8,
+  "silence_days": [
+   2,
+   7,
+   30
+  ],
+  "sporadic_max_days": 10,
+  "top_n": 30,
+  "window_days": 30
+ }
+}

@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "daily_report.schema.json",
+  "title": "看板日报（契约 v1，正文见 docs/specs/看板/契约.md）",
+  "description": "页面只认这个形状。顺序全走数组；算不出来给 null + reason 不给 0；截断要自报。",
+  "type": "object",
+  "required": ["ok", "schema", "date", "generated_at", "source", "blocks"],
+  "properties": {
+    "ok": {"type": "boolean", "description": "至少一块 ok 才 true"},
+    "schema": {"type": "integer", "enum": [1]},
+    "date": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "请求的日报日期"},
+    "generated_at": {"type": "string", "description": "ISO 时间"},
+    "source": {"type": "object", "required": ["key", "label"],
+               "properties": {"key": {"type": "string"}, "label": {"type": "string"}}},
+    "asof": {"type": ["string", "null"], "description": "截至时刻（Q5-C 留位）：接口给当天进行中的数时填，日报为 null"},
+    "progress": {"type": ["object", "null"], "description": "今日进度（Q5-C 留位）：一个 block 或 null"},
+    "reason": {"type": "string", "description": "ok:false 时的人话"},
+    "blocks": {"type": "array", "items": {"$ref": "#/definitions/block"}}
+  },
+  "definitions": {
+    "block": {
+      "type": "object",
+      "required": ["key", "label", "date", "ok", "kpis", "sections", "series"],
+      "properties": {
+        "key": {"type": "string"},
+        "label": {"type": "string"},
+        "date": {"type": ["string", "null"], "description": "这一块实际的业务日期；三块可以不同一天"},
+        "ok": {"type": "boolean"},
+        "reason": {"type": "string"},
+        "kpis": {"type": "array", "items": {"$ref": "#/definitions/kpi"}},
+        "sections": {"type": "array", "items": {"$ref": "#/definitions/section"}},
+        "series": {"type": "array", "items": {"$ref": "#/definitions/series"}}
+      }
+    },
+    "fmt": {"type": "string", "enum": ["money", "int", "pct", "text", "date", "days"]},
+    "kpi": {
+      "type": "object",
+      "required": ["key", "label", "value", "fmt"],
+      "properties": {
+        "key": {"type": "string"}, "label": {"type": "string"},
+        "value": {"type": ["number", "string", "null"]},
+        "unit": {"type": "string"},
+        "fmt": {"$ref": "#/definitions/fmt"},
+        "dod": {"type": ["number", "null"], "description": "环比，比率不是百分数：0.031 = +3.1%"},
+        "prev": {"type": ["number", "string", "null"]},
+        "note": {"type": "string"}
+      }
+    },
+    "column": {
+      "type": "object",
+      "required": ["key", "label", "fmt"],
+      "properties": {"key": {"type": "string"}, "label": {"type": "string"}, "fmt": {"$ref": "#/definitions/fmt"}}
+    },
+    "section": {
+      "type": "object",
+      "required": ["key", "label", "columns", "rows"],
+      "properties": {
+        "key": {"type": "string"}, "label": {"type": "string"}, "note": {"type": "string"},
+        "columns": {"type": "array", "items": {"$ref": "#/definitions/column"}},
+        "rows": {"type": "array", "items": {"type": "object"}},
+        "truncated": {"type": ["object", "null"], "required": ["shown", "total"],
+                      "properties": {"shown": {"type": "integer"}, "total": {"type": "integer"}}}
+      }
+    },
+    "point": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": {"x": {"type": "string"}, "y": {"type": ["number", "null"], "description": "null = 缺，折线断开"}}
+    },
+    "series": {
+      "type": "object",
+      "required": ["key", "label", "fmt", "points"],
+      "properties": {
+        "key": {"type": "string"}, "label": {"type": "string"}, "unit": {"type": "string"},
+        "fmt": {"$ref": "#/definitions/fmt"},
+        "points": {"type": "array", "items": {"$ref": "#/definitions/point"}}
+      }
+    }
+  }
+}

@@ -1,0 +1,88 @@
+{
+ "by": {},
+ "date": "2026-09-17",
+ "days": 7,
+ "gap": [
+  "2026-09-17"
+ ],
+ "kpi": {
+  "orders": {
+   "avg7": 16.0,
+   "avg7_days": 6,
+   "dod": null,
+   "prev": 16,
+   "value": null,
+   "vs_avg7": null
+  },
+  "sites": {
+   "avg7": 3.0,
+   "avg7_days": 6,
+   "dod": null,
+   "prev": 3,
+   "value": null,
+   "vs_avg7": null
+  },
+  "tpv": {
+   "avg7": 1612.5,
+   "avg7_days": 6,
+   "dod": null,
+   "prev": 1615.0,
+   "value": null,
+   "vs_avg7": null
+  }
+ },
+ "ok": true,
+ "reason": "2026-09-17 没有台账，当日的数算不出来（趋势里更早的天还在）",
+ "series": [
+  {
+   "date": "2026-09-11",
+   "ok": true,
+   "orders": 16,
+   "sites": 3,
+   "tpv": 1610.0
+  },
+  {
+   "date": "2026-09-12",
+   "ok": true,
+   "orders": 16,
+   "sites": 3,
+   "tpv": 1611.0
+  },
+  {
+   "date": "2026-09-13",
+   "ok": true,
+   "orders": 16,
+   "sites": 3,
+   "tpv": 1612.0
+  },
+  {
+   "date": "2026-09-14",
+   "ok": true,
+   "orders": 16,
+   "sites": 3,
+   "tpv": 1613.0
+  },
+  {
+   "date": "2026-09-15",
+   "ok": true,
+   "orders": 16,
+   "sites": 3,
+   "tpv": 1614.0
+  },
+  {
+   "date": "2026-09-16",
+   "ok": true,
+   "orders": 16,
+   "sites": 3,
+   "tpv": 1615.0
+  },
+  {
+   "date": "2026-09-17",
+   "ok": false,
+   "orders": null,
+   "sites": null,
+   "tpv": null
+  }
+ ],
+ "top": []
+}

@@ -1,0 +1,6 @@
+{
+ "churn": {
+  "daily_min_tpv": 5000,
+  "daily_top_n": 5
+ }
+}

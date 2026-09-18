@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>运营看板</title>
+<!--
+  单文件看板页（原型）。只认 docs/specs/看板/契约.md 里的日报形状，不认任何业务字段。
+  纯 HTML + 内联 JS，零外部依赖：file:// 双击也能开。
+  服务端导出时把下面 #embedded-report 里的 null 换成日报 JSON，页面就成了自带数据的快照。
+-->
+<style>
+  body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;padding:12px 16px;color:#222;background:#fff}
+  header{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding-bottom:8px;border-bottom:1px solid #ccc}
+  header label{display:inline-flex;gap:4px;align-items:center;font-size:13px}
+  header input,header select,header button{font-size:13px}
+  #base{width:180px}
+  .meta{font-size:12px;color:#666}
+  #error{margin:8px 0;padding:6px 8px;border:1px solid #c00;color:#c00;background:#fff5f5;font-size:13px;white-space:pre-wrap}
+  #snapshot-note{font-size:13px;padding:6px 8px;border:1px solid #999;background:#f4f4f4}
+  section.block{margin:14px 0;padding:8px 10px;border:1px solid #bbb}
+  section.block summary{cursor:pointer;font-size:16px;font-weight:600}
+  section.block summary .date{font-weight:normal;font-size:12px;color:#666;margin-left:8px}
+  .reason{color:#a00;font-size:13px}
+  .kpis{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+  .kpi{border:1px solid #ccc;padding:6px 10px;min-width:150px}
+  .kpi .label{font-size:12px;color:#666}
+  .kpi .main{font-size:20px;font-variant-numeric:tabular-nums}
+  .kpi .sub{font-size:12px;color:#444}
+  h3{font-size:14px;margin:12px 0 4px}
+  .note{font-size:12px;color:#666}
+  table{border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+  th,td{border:1px solid #ccc;padding:3px 8px;text-align:left;white-space:nowrap}
+  th{background:#f2f2f2}
+  td.num,th.num{text-align:right}
+  .trunc{font-size:12px;color:#666;margin:2px 0 8px}
+  .chart{margin:6px 0 10px;max-width:900px}
+  .chart svg{display:block;width:100%;height:120px;border-bottom:1px solid #ccc}
+  .chart .xlabels{display:flex;justify-content:space-between;font-size:11px;color:#666}
+  .chart .empty{font-size:12px;color:#666}
+  .hidden{display:none !important}
+</style>
+</head>
+<body>
+
+<header>
+  <span id="live-controls" style="display:contents">
+    <label>服务地址 <input id="base" placeholder="留空 = 同源；file:// 打开时填 http://机器:5070" title="存在 localStorage"></label>
+    <label>数据源 <select id="source"></select></label>
+    <label>日期 <select id="date"></select></label>
+    <label>口令 <input id="passcode" type="password" size="10" title="存在 sessionStorage，关掉标签页就没了"></label>
+    <label>刷新
+      <select id="refresh">
+        <option value="0">关</option>
+        <option value="30">30s</option>
+        <option value="60" selected>60s</option>
+        <option value="300">5min</option>
+      </select>
+    </label>
+    <button id="btn-refresh">立即刷新</button>
+    <button id="btn-export">导出单文件</button>
+    <span class="meta" id="last-refresh">最后刷新 —</span>
+  </span>
+  <span id="snapshot-note" class="hidden"></span>
+  <span class="meta" id="generated">生成于 —</span>
+</header>
+
+<div id="error" class="hidden"></div>
+<main id="blocks"></main>
+
+<script id="embedded-report" type="application/json">null</script>
+
+<script id="dashboard-lib">
+/* 纯函数：不碰页面、不发请求，tests/page.mjs 抓出这一块单独跑。 */
+
+/** 整数部分加千分位；s 是 toFixed 之后的字符串（可带负号、小数）。 */
+function thousands(s){
+  var parts = String(s).split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return parts.join('.');
+}
+
+/** 按契约六种 fmt 显示一个值；null / undefined 一律 —。 */
+function fmtValue(v, fmt){
+  if(v === null || v === undefined) return '—';
+  var n;
+  switch(fmt){
+    case 'money':
+      n = Number(v); return isFinite(n) ? thousands(n.toFixed(2)) : String(v);
+    case 'int':
+      n = Number(v); return isFinite(n) ? thousands(Math.round(n).toFixed(0)) : String(v);
+    case 'pct':                      /* 值是 0~1 的比率 */
+      n = Number(v); return isFinite(n) ? (n * 100).toFixed(1) + '%' : String(v);
+    case 'days':
+      return v + ' 天';
+    case 'text':
+    case 'date':
+    default:
+      return String(v);
+  }
+}
+
+/** dod 是比率（0.031 = +3.1%），带正负号；算不出来（null / NaN）→ —。 */
+function fmtDod(dod){
+  if(dod === null || dod === undefined) return '—';
+  var n = Number(dod);
+  if(!isFinite(n)) return '—';
+  var s = (n * 100).toFixed(1) + '%';
+  return n > 0 ? '+' + s : s;
+}
+
+/** 把 points 切成不含 null 的连续段；每个点带原始下标 i，画折线按 i 定 x。
+ *  y:null 是「缺」，折线在那儿断开不连线（契约 / §2.9）。 */
+function segments(points){
+  var out = [], cur = [];
+  var flush = function(){ if(cur.length) out.push(cur); cur = []; };
+  (points || []).forEach(function(p, i){
+    var raw = p ? p.y : null;
+    var y = (raw === null || raw === undefined || raw === '') ? NaN : Number(raw);
+    if(isFinite(y)) cur.push({ i: i, x: p.x, y: y });
+    else flush();
+  });
+  flush();
+  return out;
+}
+
+/** 截断自报（§2.16.5）：truncated 非空 → 「只列了 shown / total 行」。 */
+function truncNote(truncated){
+  if(!truncated || truncated.shown === null || truncated.shown === undefined) return '';
+  return '只列了 ' + truncated.shown + ' / ' + truncated.total + ' 行';
+}
+
+/** 拼查询串：null / undefined / '' 跳过；有参数才带 ?。 */
+function buildQuery(params){
+  var parts = [];
+  Object.keys(params || {}).forEach(function(k){
+    var v = params[k];
+    if(v === null || v === undefined || v === '') return;
+    parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(String(v)));
+  });
+  return parts.length ? '?' + parts.join('&') : '';
+}
+
+/** 指标卡的两行字：main = 值 + 单位；sub = note/环比 + 带号 dod +（上期 prev）。 */
+function kpiText(kpi){
+  var k = kpi || {};
+  var main = fmtValue(k.value, k.fmt);
+  if(k.unit && k.value !== null && k.value !== undefined) main += ' ' + k.unit;
+  var sub;
+  if(k.dod === null || k.dod === undefined || !isFinite(Number(k.dod))){
+    sub = '—';
+  }else{
+    sub = (k.note || '环比') + ' ' + fmtDod(k.dod);
+    if(k.prev !== null && k.prev !== undefined) sub += '（上期 ' + fmtValue(k.prev, k.fmt) + '）';
+  }
+  return { main: main, sub: sub };
+}
+</script>
+
+<script>
+/* ===== 页面接线：读控件、发请求、渲染。业务字段一概不认，只认契约的形状。 ===== */
+(function(){
+  'use strict';
+  var $ = function(id){ return document.getElementById(id); };
+  var esc = function(s){
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  };
+  var NUM_FMT = { money:1, int:1, pct:1, days:1 };
+  var pad2 = function(n){ return (n < 10 ? '0' : '') + n; };
+  var hms = function(d){ return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds()); };
+
+  /* ---------- 存取（浏览器存储可能被禁，全部 try） ---------- */
+  var store = {
+    get: function(box, k){ try{ return box.getItem(k); }catch(e){ return null; } },
+    set: function(box, k, v){ try{ if(v === null || v === undefined || v === '') box.removeItem(k); else box.setItem(k, v); }catch(e){} }
+  };
+  var KEY_BASE = 'dashboard.base', KEY_PASS = 'dashboard.passcode', KEY_FOLD = 'dashboard.fold.';
+
+  /* ---------- 状态 ---------- */
+  var state = { source: '', date: '', refresh: 60, timer: null, sources: [] };
+
+  /* ---------- 错误条 ---------- */
+  function showError(msg){
+    var el = $('error');
+    if(!msg){ el.classList.add('hidden'); el.textContent = ''; return; }
+    el.textContent = msg; el.classList.remove('hidden');
+  }
+
+  /* ---------- 渲染 ---------- */
+  function renderReport(rep){
+    $('generated').textContent = '生成于 ' + (rep && rep.generated_at ? rep.generated_at : '—');
+    var host = $('blocks');
+    host.innerHTML = '';
+    if(!rep){ return; }
+    if(rep.progress) host.appendChild(renderBlock(rep.progress, true));
+    (rep.blocks || []).forEach(function(b){ host.appendChild(renderBlock(b, false)); });
+  }
+
+  function renderBlock(b, isProgress){
+    var sec = document.createElement('section');
+    sec.className = 'block';
+    var foldKey = KEY_FOLD + (b.key || '');
+    var folded = store.get(localStorage, foldKey) === '1';
+    var html = '<details' + (folded ? '' : ' open') + '>'
+      + '<summary>' + esc(b.label || b.key || '') + (isProgress ? '（今日进度）' : '')
+      + '<span class="date">' + esc(b.date || '') + '</span></summary>';
+    if(!b.ok){
+      html += '<p class="reason">' + esc(b.reason || '没有数据') + '</p>';
+    }else{
+      html += renderKpis(b.kpis || []);
+      (b.sections || []).forEach(function(s){ html += renderSection(s); });
+      (b.series || []).forEach(function(s){ html += renderSeries(s); });
+    }
+    html += '</details>';
+    sec.innerHTML = html;
+    var det = sec.querySelector('details');
+    det.addEventListener('toggle', function(){ store.set(localStorage, foldKey, det.open ? '' : '1'); });
+    return sec;
+  }
+
+  function renderKpis(kpis){
+    if(!kpis.length) return '';
+    var h = '<div class="kpis">';
+    kpis.forEach(function(k){
+      var t = kpiText(k);
+      h += '<div class="kpi"><div class="label">' + esc(k.label || k.key) + '</div>'
+         + '<div class="main">' + esc(t.main) + '</div>'
+         + '<div class="sub">' + esc(t.sub) + '</div></div>';
+    });
+    return h + '</div>';
+  }
+
+  function renderSection(s){
+    var cols = s.columns || [];
+    var h = '<h3>' + esc(s.label || s.key) + '</h3>';
+    if(s.note) h += '<div class="note">' + esc(s.note) + '</div>';
+    if(!cols.length || !(s.rows || []).length){
+      h += '<div class="note">（没有行）</div>';
+    }else{
+      h += '<table><thead><tr>';
+      cols.forEach(function(c){ h += '<th class="' + (NUM_FMT[c.fmt] ? 'num' : '') + '">' + esc(c.label || c.key) + '</th>'; });
+      h += '</tr></thead><tbody>';
+      s.rows.forEach(function(r){
+        h += '<tr>';
+        cols.forEach(function(c){
+          var v = r && Object.prototype.hasOwnProperty.call(r, c.key) ? r[c.key] : null;
+          h += '<td class="' + (NUM_FMT[c.fmt] ? 'num' : '') + '">' + esc(v === null || v === undefined ? '' : fmtValue(v, c.fmt)) + '</td>';
+        });
+        h += '</tr>';
+      });
+      h += '</tbody></table>';
+    }
+    var tn = truncNote(s.truncated);
+    if(tn) h += '<div class="trunc">' + esc(tn) + '</div>';
+    return h;
+  }
+
+  /* 内联 SVG 折线：一条 series 一张小图。x 按数组顺序等距；y:null 处断开；
+     一条基线 + 首末两个 x 标签。单色，不做配色系统（原型）。 */
+  function renderSeries(s){
+    var pts = s.points || [];
+    var h = '<h3>' + esc(s.label || s.key) + (s.unit ? ' <span class="note">(' + esc(s.unit) + ')</span>' : '') + '</h3>';
+    var segs = segments(pts);
+    if(!pts.length || !segs.length){
+      return h + '<div class="chart"><div class="empty">' + (pts.length ? '全部缺值' : '（没有点）') + '</div></div>';
+    }
+    var W = 600, H = 120, padT = 8, padB = 8, padX = 6;
+    var ys = [];
+    segs.forEach(function(seg){ seg.forEach(function(p){ ys.push(p.y); }); });
+    var lo = Math.min(0, Math.min.apply(null, ys)), hi = Math.max(0, Math.max.apply(null, ys));
+    if(hi === lo){ hi = lo + 1; }
+    var n = pts.length;
+    var xAt = function(i){ return n === 1 ? W / 2 : padX + (W - 2 * padX) * i / (n - 1); };
+    var yAt = function(v){ return padT + (H - padT - padB) * (1 - (v - lo) / (hi - lo)); };
+    var y0 = yAt(0);
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="' + esc(s.label || s.key) + '">';
+    svg += '<line x1="0" x2="' + W + '" y1="' + y0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" stroke="#bbb" stroke-width="1" vector-effect="non-scaling-stroke"/>';
+    segs.forEach(function(seg){
+      if(seg.length === 1){
+        var p = seg[0];
+        svg += '<circle cx="' + xAt(p.i).toFixed(1) + '" cy="' + yAt(p.y).toFixed(1) + '" r="3" fill="#333"><title>'
+             + esc(p.x) + '：' + esc(fmtValue(p.y, s.fmt)) + '</title></circle>';
+        return;
+      }
+      var d = seg.map(function(p){ return xAt(p.i).toFixed(1) + ',' + yAt(p.y).toFixed(1); }).join(' ');
+      svg += '<polyline points="' + d + '" fill="none" stroke="#333" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>';
+      seg.forEach(function(p){
+        svg += '<circle cx="' + xAt(p.i).toFixed(1) + '" cy="' + yAt(p.y).toFixed(1) + '" r="2.5" fill="#333"><title>'
+             + esc(p.x) + '：' + esc(fmtValue(p.y, s.fmt)) + '</title></circle>';
+      });
+    });
+    svg += '</svg>';
+    var first = pts[0] ? pts[0].x : '', last = pts[n - 1] ? pts[n - 1].x : '';
+    var missing = n - ys.length;
+    h += '<div class="chart">' + svg
+       + '<div class="xlabels"><span>' + esc(first) + '</span>'
+       + (missing ? '<span>缺 ' + missing + ' 点（断线处）</span>' : '')
+       + '<span>' + esc(last) + '</span></div></div>';
+    return h;
+  }
+
+  /* ---------- 嵌入模式：服务端导出时把 #embedded-report 的 null 换成日报 ---------- */
+  var embedded = null;
+  try{ embedded = JSON.parse($('embedded-report').textContent); }catch(e){ embedded = null; }
+  if(embedded){
+    $('live-controls').classList.add('hidden');
+    var note = $('snapshot-note');
+    note.textContent = '导出于 ' + (embedded.generated_at || '—') + '，这是一份快照，数据不会更新';
+    note.classList.remove('hidden');
+    if(embedded.ok === false && embedded.reason) showError(embedded.reason);
+    renderReport(embedded);
+    return;
+  }
+
+  /* ---------- 在线模式 ---------- */
+  function baseUrl(){
+    var v = ($('base').value || '').trim().replace(/\/+$/, '');
+    if(v) return v;
+    return (location.protocol === 'http:' || location.protocol === 'https:') ? location.origin : '';
+  }
+  function headers(){
+    var h = {};
+    var p = $('passcode').value;
+    if(p) h['Authorization'] = 'Bearer ' + p;
+    return h;
+  }
+  function api(path, params){
+    var url = baseUrl() + path + buildQuery(params || {});
+    return fetch(url, { headers: headers(), cache: 'no-store' }).then(function(resp){
+      if(resp.status === 401){
+        var had = !!$('passcode').value;
+        $('passcode').value = '';
+        store.set(sessionStorage, KEY_PASS, '');
+        throw new Error(had ? '口令不对或已停用' : '要口令：在顶栏「口令」里输，找配这套看板的人要');
+      }
+      return resp.text().then(function(txt){
+        var data = null;
+        try{ data = JSON.parse(txt); }catch(e){ data = null; }
+        if(!resp.ok){
+          throw new Error('HTTP ' + resp.status + (data && data.msg ? '：' + data.msg : '') + '（' + url + '）');
+        }
+        if(!data) throw new Error('返回的不是 JSON（' + url + '）');
+        return data;
+      });
+    }, function(e){
+      throw new Error('连不上 ' + url + '：' + (e && e.message ? e.message : e));
+    });
+  }
+
+  function syncUrl(){
+    try{
+      var q = buildQuery({ source: state.source, date: state.date, refresh: state.refresh });
+      history.replaceState(null, '', location.pathname + q + location.hash);
+    }catch(e){}
+  }
+
+  function fillSelect(sel, items){
+    sel.innerHTML = '';
+    items.forEach(function(it){
+      var o = document.createElement('option');
+      o.value = it.value; o.textContent = it.text;
+      if(it.disabled) o.disabled = true;
+      sel.appendChild(o);
+    });
+  }
+
+  function loadSources(){
+    return api('/api/dashboard/sources').then(function(d){
+      if(d.ok === false) throw new Error(d.msg || d.reason || 'sources 返回 ok:false');
+      state.sources = d.sources || [];
+      fillSelect($('source'), state.sources.map(function(s){
+        return { value: s.key, text: s.label + (s.configured ? '' : '（未接：' + (s.reason || '') + '）'), disabled: !s.configured };
+      }));
+      var ok = state.sources.filter(function(s){ return s.configured; });
+      var want = state.source && state.sources.some(function(s){ return s.key === state.source; }) ? state.source : (ok[0] ? ok[0].key : '');
+      state.source = want;
+      $('source').value = want;
+    });
+  }
+
+  function loadDates(){
+    if(!state.source){ fillSelect($('date'), []); return Promise.resolve(); }
+    return api('/api/dashboard/dates', { source: state.source }).then(function(d){
+      if(d.ok === false) throw new Error(d.msg || d.reason || 'dates 返回 ok:false');
+      var dates = d.dates || [];
+      fillSelect($('date'), dates.map(function(x){ return { value: x, text: x + (x === d.latest ? '（最新）' : '') }; }));
+      if(!dates.length){
+        state.date = '';
+        showError(d.reason || ('数据源 ' + state.source + ' 一天数据都没有'));
+        return;
+      }
+      if(!state.date || dates.indexOf(state.date) < 0) state.date = d.latest || dates[0];
+      $('date').value = state.date;
+    });
+  }
+
+  function loadDaily(){
+    if(!state.source){ renderReport(null); showError('没有可用的数据源'); return Promise.resolve(); }
+    return api('/api/dashboard/daily', { source: state.source, date: state.date }).then(function(rep){
+      renderReport(rep);
+      $('last-refresh').textContent = '最后刷新 ' + hms(new Date());
+      if(rep.ok === false) showError(rep.reason || rep.msg || '日报 ok:false');
+      else showError('');
+    });
+  }
+
+  var busy = false;
+  function refreshAll(full){
+    if(busy) return;
+    busy = true;
+    showError('');
+    var p = full ? loadSources().then(loadDates) : Promise.resolve();
+    p.then(loadDaily).then(function(){ syncUrl(); busy = false; }, function(e){
+      busy = false;
+      showError(e && e.message ? e.message : String(e));
+    });
+  }
+
+  function setTimer(){
+    if(state.timer){ clearInterval(state.timer); state.timer = null; }
+    if(state.refresh > 0) state.timer = setInterval(function(){ refreshAll(false); }, state.refresh * 1000);
+  }
+
+  function exportFile(){
+    if(!state.source){ showError('没有可用的数据源，导不了'); return; }
+    var url = baseUrl() + '/api/dashboard/export' + buildQuery({ source: state.source, date: state.date });
+    fetch(url, { headers: headers() }).then(function(resp){
+      if(resp.status === 401){
+        $('passcode').value = ''; store.set(sessionStorage, KEY_PASS, '');
+        throw new Error('口令不对或已停用');
+      }
+      if(!resp.ok){
+        return resp.text().then(function(t){
+          var msg = ''; try{ msg = JSON.parse(t).msg || ''; }catch(e){}
+          throw new Error('导出失败 HTTP ' + resp.status + (msg ? '：' + msg : ''));
+        });
+      }
+      var cd = resp.headers.get('Content-Disposition') || '';
+      var name = '';
+      var m1 = cd.match(/filename\*=UTF-8''([^;]+)/i);
+      if(m1){ try{ name = decodeURIComponent(m1[1]); }catch(e){} }
+      if(!name){ var m2 = cd.match(/filename="?([^";]+)"?/i); if(m2) name = m2[1]; }
+      if(!name) name = '看板_' + state.source + '_' + (state.date || 'latest') + '.html';
+      return resp.blob().then(function(blob){
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function(){ URL.revokeObjectURL(a.href); }, 5000);
+      });
+    }).then(null, function(e){ showError(e && e.message ? e.message : String(e)); });
+  }
+
+  /* ---------- 初始化：URL 参数 > 存储 > 默认 ---------- */
+  var qs = {};
+  try{
+    location.search.replace(/^\?/, '').split('&').forEach(function(kv){
+      if(!kv) return;
+      var i = kv.indexOf('='); var k = i < 0 ? kv : kv.slice(0, i), v = i < 0 ? '' : kv.slice(i + 1);
+      try{ qs[decodeURIComponent(k)] = decodeURIComponent(v.replace(/\+/g, ' ')); }catch(e){}
+    });
+  }catch(e){}
+  $('base').value = store.get(localStorage, KEY_BASE) || '';
+  $('passcode').value = store.get(sessionStorage, KEY_PASS) || '';
+  state.source = qs.source || '';
+  state.date = qs.date || '';
+  if(qs.refresh !== undefined && qs.refresh !== '' && isFinite(Number(qs.refresh))) state.refresh = Math.max(0, Number(qs.refresh));
+  var rsel = $('refresh');
+  if(!Array.prototype.some.call(rsel.options, function(o){ return Number(o.value) === state.refresh; })){
+    var o = document.createElement('option'); o.value = String(state.refresh); o.textContent = state.refresh + 's'; rsel.appendChild(o);
+  }
+  rsel.value = String(state.refresh);
+
+  /* ---------- 事件 ---------- */
+  $('base').addEventListener('change', function(){ store.set(localStorage, KEY_BASE, $('base').value.trim()); refreshAll(true); });
+  $('passcode').addEventListener('change', function(){ store.set(sessionStorage, KEY_PASS, $('passcode').value); refreshAll(true); });
+  $('source').addEventListener('change', function(){ state.source = $('source').value; state.date = ''; showError(''); loadDates().then(loadDaily).then(syncUrl, function(e){ showError(e.message || String(e)); }); });
+  $('date').addEventListener('change', function(){ state.date = $('date').value; refreshAll(false); });
+  $('refresh').addEventListener('change', function(){ state.refresh = Number($('refresh').value) || 0; setTimer(); syncUrl(); });
+  $('btn-refresh').addEventListener('click', function(){ refreshAll(true); });
+  $('btn-export').addEventListener('click', exportFile);
+
+  setTimer();
+  refreshAll(true);
+})();
+</script>
+</body>
+</html>

@@ -10,7 +10,7 @@
 
 ```bash
 cp config.example.json config.json          # 填 workbench_data_dir；口令去 /dashboard/admin 配
-python -m server                            # 默认 http://127.0.0.1:5060/dashboard
+python -m server                            # 默认 http://127.0.0.1:5070/dashboard
 ```
 
 第一次或工作台改了口径之后：
@@ -22,7 +22,7 @@ bash tests/run-unit.sh
 
 ## 页面怎么脱离本机
 
-- **托管**：把服务开到内网（`config.json` 的 `dashboard.listen` 写 `0.0.0.0:5060`），别人打开 `http://<这台机器>:5060/dashboard`，输口令看。
+- **托管**：把服务开到内网（`config.json` 的 `dashboard.listen` 写 `0.0.0.0:5070`），别人打开 `http://<这台机器>:5070/dashboard`，输口令看。
 - **单文件**：页面右上「导出」→ 一个自带当天数据的 HTML，发给谁都能双击打开。**这个文件不设口令**，数据就在文件里，给谁等于给谁看。
 - **公司接口**：`config.json` 填 `company_api.base_url` 后，数据源里多一个「公司接口」；契约见 `docs/specs/看板/契约.md`。
 
