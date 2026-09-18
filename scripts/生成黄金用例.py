@@ -12,7 +12,7 @@
 
 ⚠ 输入全是**构造**的（用户ID 编成 1000000000000000001 这种），真实商户数据不进仓库。
 ⚠ 输出要**确定**：不带时间戳、顺序走数组。JSON 落盘用 sort_keys + ensure_ascii=False + indent=1。
-⚠ `order_monitor_classify` 那一族要 pandas（口径吃 DataFrame）；没装就跳过并说出来，别装作生成了。
+⚠ `order_monitor_classify` 那一族口径吃 pandas DataFrame；没装 pandas 时用 `_pandas_shim()`（见函数注释，对这族输入逐字节等价）。
 """
 from __future__ import annotations
 
@@ -25,7 +25,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 GOLDEN = ROOT / "fixtures" / "golden"
 # 这几族的口径只有 JS 版，由 scripts/golden_js.mjs 跑（node 直跑，零依赖）
-JS_FAMILIES = ("conversion_funnel", "conversion_coverage", "conversion_analyze", "shared_fail_group", "merchant_status", "merchant_change_attrib")
+JS_FAMILIES = ("conversion_funnel", "conversion_coverage", "conversion_analyze", "conversion_watchlist", "conversion_level",
+               "conversion_trend", "conversion_baseline", "conversion_po_rate", "shared_fail_group", "merchant_status", "merchant_change_attrib")
 
 
 def dump(obj) -> str:
@@ -260,6 +261,108 @@ def cases() -> dict:
         "字面量Dataset_跌20pct_告警和下钻": ({"dataset": lit, "opts": {"period": "日报", "tDate": "2026-09-06", "yDate": "2026-09-05"}}, {}),
     }
 
+    # ---- churn_assess 再加一条：同一天同一站点两行 → 后一行覆盖前一行（代码行为，钉住） ----
+    dup = {d: [(U1, "a.com", 100, 1), (U2, "b.com", 500, 5)] for d in D[:-1]}
+    dup[D[-1]] = [(U1, "a.com", 100, 1), (U1, "a.com", 900, 9), (U2, "b.com", 500, 5)]
+    out["churn_assess"]["同一天同一站点两行取后一行"] = ({"days": _days(dup), "today": D[-1], "prev": None}, cfg)
+
+    # ---- 文本：日报汇总 / 播报 / 周报 / 交易量群消息（研发不重写文本，但契约要钉住「什么时候是空串」） ----
+    out["churn_daily_text"] = {
+        "掉量单独一行_明写还在出单没算进上面": ({"state": st}, {"daily_min_tpv": 5000, "daily_top_n": 5}),
+        "一条都不该报时是空串": ({"state": A.assess(_days(base), D[-2], None, cfg)}, {"daily_min_tpv": 5000, "daily_top_n": 5}),
+    }
+    inc_state = A.assess(_days(inc), D[-1], None, cfg, gateway={D[-3]: [_gw(u, "网关A", 100, 2) for u in uids], D[-1]: []})
+    out["churn_broadcast"] = {
+        "只推前N的沉默跃迁和掉量推_群和私聊分组": ({"state": A.assess(_days(silent2), D[-1], None, cfg)}, {}),
+        "通道异常单独一行_缺数据一个字不出": ({"state": inc_state}, {}),
+    }
+    out["churn_weekly_text"] = {
+        "标题不带日期_谁在跟只在有人跟时出现": ({"ws": [prev, cur], "states": sts, "follow": follow, "date": "2026-09-14"}, wk_settings),
+        "在途风险算不出来写算不出来不写0": ({"ws": [prev, cur], "states": None, "follow": {}, "date": "2026-09-14"}, wk_settings),
+    }
+    out["churn_trade_msg"] = {
+        "有数就有整条消息": ({"days": _days(ov_days), "date": D[-1]}, {"top_n": 8, "owner_n": 6, "mode_n": 0}),
+        "当天一个数都没有是空串": ({"days": _days({d: ov_days[d] for d in D[:-1]}), "date": D[-1]}, {"top_n": 8, "owner_n": 6, "mode_n": 0}),
+    }
+
+    # ---- JS：待观察商户 / 水平信号 / 趋势 / 基准线 / 支付前中拆账（输入形状照 tests/*.mjs） ----
+    out["conversion_watchlist"] = {
+        "低于同行谁进怎么排_量太少不参与": ({"merged": [["P1", "A", 100, 0.50, None], ["P2", "A", 100, 0.60, None], ["P3", "A", 100, 0.70, None],
+                                                 ["L1", "A", 11, 0.15, 0.10], ["L2", "A", 200, 0.40, 0.62], ["N1", "A", 100, 0.55, None], ["T1", "A", 9, 0.15, None]],
+                                      "churn": {"gained": []}}, {}),
+        "基准不加权_一家独大不拿自己当基准": ({"merged": [["E1", "E", 1000, 0.30, None], ["E2", "E", 20, 0.60, None], ["E3", "E", 20, 0.70, None], ["E4", "E", 20, 0.80, None]],
+                                              "churn": {"gained": []}}, {}),
+    }
+    D8 = ["2026-09-%02d" % i for i in range(1, 9)]
+    GW, FM = "4. 网关通过率", "3.2 3DS交易占比"
+    def scene8(vals):
+        rows = []
+        for i, d in enumerate(D8):
+            for src, by in vals.items():
+                for m, arr in by.items():
+                    if arr[i] is not None:
+                        rows.append({"统计日期": d, "来源": src, "类型": m, "当期值": arr[i]})
+        return rows
+    pool = {"n": 20, "p10": 0.80, "p25": 0.85, "p50": 0.90, "p75": 0.95, "p90": 0.98}
+    out["conversion_level"] = {
+        "跌破P10报_环比只差1pt报不出": ({"rows": scene8({"独立站API": {GW: [0.90, 0.91, 0.90, 0.89, 0.90, 0.91, 0.79, 0.78]}}), "tDate": D8[7],
+                                     "level": {"独立站API|" + GW: pool}, "levelMixed": {}}, {}),
+        "只有混池没有本来源池不报_不做混池回退": ({"rows": scene8({"独立站API": {GW: [0.90, 0.91, 0.90, 0.89, 0.90, 0.91, 0.79, 0.78]}}), "tDate": D8[7],
+                                                "level": {}, "levelMixed": {GW: pool}}, {}),
+        "摩擦类指标越过P90也报_方向反着看": ({"rows": scene8({"独立站API": {FM: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.99]}}), "tDate": D8[7],
+                          "level": {"独立站API|" + FM: {"n": 20, "p10": 0.05, "p25": 0.08, "p50": 0.10, "p75": 0.12, "p90": 0.15}}, "levelMixed": {}}, {}),
+        "满分指标要挡_常年100pct不报": ({"rows": scene8({"独立站API": {GW: [1, 1, 1, 1, 1, 1, 1, 1]}}), "tDate": D8[7],
+                          "level": {"独立站API|" + GW: pool}, "levelMixed": {}}, {}),
+    }
+    MT = {"ck": "1.1 校验1通过率", "pn": "1.2 Paynow点击率", "biz": "2. 业务校验通过率", "sub": "3. 网关提交率", "gw": "4. 网关通过率"}
+    BASE = {"独立站API": {"ck": 0.99, "pn": 0.98, "biz": 0.97, "sub": 0.96, "gw": 0.60},
+            "独立站标准收银台": {"ck": 0.99, "pn": 0.60, "biz": 0.99, "sub": 0.94, "gw": 0.80},
+            "Element": {"ck": 0.99, "pn": 0.99, "biz": 0.30, "sub": 0.92, "gw": 0.85}}
+    D4 = ["2026-09-03", "2026-09-04", "2026-09-05", "2026-09-06"]
+    def trend_scene(dates, skip=()):
+        gone = {f"{x['date']}|{x['src']}|{x.get('metric', '*')}" for x in skip}
+        rows = []
+        for i, d in enumerate(dates):
+            for src, r in BASE.items():
+                if f"{d}|{src}|*" in gone:
+                    continue
+                for k, m in MT.items():
+                    if f"{d}|{src}|{m}" in gone:
+                        continue
+                    v = r["gw"] + i * 0.01 if k == "gw" else r[k]
+                    rows.append({"统计日期": d, "来源": src, "类型": m, "当期值": v,
+                                 "_n": round(1000 * v) if k == "ck" else None, "_d": 1000 + i if k == "ck" else None})
+        return rows
+    out["conversion_trend"] = {
+        "期次自然序_多来源多期": ({"rows": trend_scene(D4), "limit": 12}, {}),
+        "缺一个大环节断线不跳过": ({"rows": trend_scene(D4, [{"date": D4[2], "src": "独立站API", "metric": MT["biz"]}]), "limit": 12}, {}),
+        "周报期次W9排在W37前": ({"rows": trend_scene(["2026 W9", "2026 W10", "2026 W37"]), "limit": 12}, {}),
+    }
+    def bl_scene(dates, vals):
+        rows = []
+        for i, d in enumerate(dates):
+            for src, by in vals.items():
+                for m, arr in by.items():
+                    if arr[i] is not None:
+                        rows.append({"统计日期": d, "来源": src, "类型": m, "当期值": arr[i]})
+        return rows
+    D12 = ["2026-09-%02d" % i for i in range(1, 13)]
+    steady = [0.80 * (1 + 0.001 * i) for i in range(12)]
+    wild = [0.50 * (1 + (0.15 if i % 2 else -0.15)) for i in range(12)]
+    out["conversion_baseline"] = {
+        "样本分池_环比样本等于期数减一": ({"rows": bl_scene(D12[:3], {"独立站API": {GW: [0.80, 0.82, 0.81]}, "独立站标准收银台": {GW: [0.60, 0.61, 0.59]}}), "k": 3, "min_abs": 0.01}, {}),
+        "分池是为了准_小来源噪声不抬高大来源阈值": ({"rows": bl_scene(D12, {"独立站API": {GW: steady}, "Element": {GW: wild}}), "k": 3, "min_abs": 0.01}, {}),
+        "周报期次自然序_相邻对不配错": ({"rows": bl_scene(["2026 W9", "2026 W10", "2026 W37"], {"独立站API": {GW: [0.50, 0.55, 0.60]}}), "k": 3, "min_abs": 0.01}, {}),
+    }
+    def po_pair(date, src, po_cnt, pay_cnt, ok, po_n=None):
+        r = lambda t, n, d: {"统计日期": date, "来源": src, "类型": t, "当期值": "99.99%", "_n": n, "_d": d}
+        return [r("业务单支付成功率", ok, po_cnt), r("支付单支付成功率", ok if po_n is None else po_n, pay_cnt)]
+    out["conversion_po_rate"] = {
+        "两段相加等于总流失_只认分子分母": ({"rows": po_pair("D1", "独立站标准收银台", 3027, 1745, 1313) + po_pair("D1", "Element", 5289, 5289, 1233), "tDate": "D1"}, {}),
+        "两行分子对不上打mismatch": ({"rows": po_pair("D1", "独立站API", 5043, 4000, 3000, 2990), "tDate": "D1"}, {}),
+        "缺支付单率那行进noData不当0": ({"rows": po_pair("D1", "独立站API", 5043, 4000, 3000)[:1], "tDate": "D1"}, {}),
+    }
+
     # ---- order_monitor_classify：出单监控分档（口径吃 pandas DataFrame；expected 要在装了 pandas 的机器上 --generate） ----
     def om(uid, site, name, bd, tpv, first_txn, submit, feedback, site_submit=""):
         return {"用户ID": uid, "站点": site, "商户名称": name, "所属BD": bd, "累计TPV_USD": tpv,
@@ -282,6 +385,45 @@ def cases() -> dict:
         "五档各一行_含站点空丢弃与超180天只入表": ({"today": today, "yesterday": yesterday, "date": T, "_yesterday_date": Y}, {}),
     }
     return out
+
+
+def _pandas_shim():
+    """没装 pandas 时给 order_monitor 用的最小替身。
+
+    classify_from_excel 对 pandas 只用到三样：`DataFrame(...).iterrows()` 吐 `(下标, 行)`、行的 `.get()`、
+    excel.py 里的 `pd.isna()` 和 `isinstance(x, pd.Timestamp)`。对**这族用例的输入**（全是 str / float，
+    每行键齐、没有 None / NaN），pandas 的 DataFrame 不会改任何值（object 列原样、float 列是 float64
+    且 `float()` 后相等），所以替身和真 pandas 生成的 expected 逐字节相同。
+    ⚠ 前提由 tests/golden.py 钉着：输入里不许出现 null、每行键必须一样。破了这个前提就得在装了 pandas 的机器上重生成。
+    """
+    import math
+    import sys
+    import types
+
+    class _Row(dict):
+        def to_dict(self):
+            return dict(self)
+
+    class _Timestamp:                     # 只用来 isinstance，永远不为真
+        pass
+
+    class DataFrame:
+        def __init__(self, rows):
+            self._rows = [_Row(r) for r in rows]
+
+        def iterrows(self):
+            for i, r in enumerate(self._rows):
+                yield i, r
+
+        def __len__(self):
+            return len(self._rows)
+
+    m = types.ModuleType("pandas")
+    m.isna = lambda v: v is None or (isinstance(v, float) and math.isnan(v))
+    m.Timestamp = _Timestamp
+    m.DataFrame = DataFrame
+    sys.modules["pandas"] = m
+    return m
 
 
 # ---------------------------------------------------------------- 跑口径层
@@ -325,6 +467,23 @@ def run(family: str, inp: dict, settings: dict):
         return {"drill": T.drill(inp["days"], inp["date"], inp["period"], inp.get("filters") or {}, inp.get("metric", "tpv"),
                                  limit=inp.get("limit", 200), anchor=inp.get("anchor")),
                 "options": T.options(inp["days"], inp["date"], inp["period"], anchor=inp.get("anchor"))}
+    if family == "churn_daily_text":
+        from churn import daily as DL
+        return {"text": DL.text(DL.summary(inp["state"], settings))}
+    if family == "churn_broadcast":
+        from churn import broadcast as BC
+        st = inp["state"]
+        hits = BC.pushable(st, settings or None)
+        by = BC.group_for_dm(hits, settings or None)
+        return {"pushable": [h["key"] for h in hits], "group_text": BC.group_text(st, settings or None),
+                "dm": {owner: BC.bd_text(owner, hs, st, settings or None) for owner, hs in by.items()}}
+    if family == "churn_weekly_text":
+        from churn import weekly as W
+        return {"text": W.text(W.summary(inp["ws"], inp.get("states"), settings, inp.get("follow") or {}, date=inp.get("date") or ""))}
+    if family == "churn_trade_msg":
+        from churn import overview as OV
+        from churn import trade_msg as M
+        return {"text": M.group_text(OV.build(inp["days"], inp["date"]), settings)}
     if family in JS_FAMILIES:
         import subprocess
         r = subprocess.run(["node", str(ROOT / "scripts" / "golden_js.mjs")],
@@ -337,7 +496,7 @@ def run(family: str, inp: dict, settings: dict):
         try:
             import pandas as pd
         except ModuleNotFoundError:
-            return None      # 调用方说「跳过」
+            pd = _pandas_shim()       # 见函数注释：对这族的输入，替身和 pandas 行为逐字节一致
         from order_monitor import classify as CL
         audit: list = []
         res = CL.classify_from_excel(pd.DataFrame(inp["today"]), pd.DataFrame(inp["yesterday"]), inp["date"], audit=audit)

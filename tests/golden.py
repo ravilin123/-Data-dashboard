@@ -34,9 +34,17 @@ cases = sorted(p for fam in GOLDEN.iterdir() if fam.is_dir() for p in fam.iterdi
 check("至少有一条用例", len(cases) > 0)
 UID = re.compile(r'"用户ID": "(\d+)"')
 for c in cases:
-    check(f"{c.parent.name}/{c.name} 三个文件", all((c / f).exists() for f in ("input.json", "settings.json", "expected.json"))
-          or c.parent.name == "order_monitor_classify" and (c / "input.json").exists(),
+    check(f"{c.parent.name}/{c.name} 三个文件", all((c / f).exists() for f in ("input.json", "settings.json", "expected.json")),
           [f for f in ("input.json", "settings.json", "expected.json") if not (c / f).exists()])
+    if c.parent.name == "order_monitor_classify":
+        # ★ 这族的 expected 可能是 pandas 替身生成的（scripts/生成黄金用例.py: _pandas_shim）。替身和真 pandas 逐字节一致的前提：
+        #   输入里没有 null、每张表每行的键一样（这样 DataFrame 不会引入 NaN、不会改类型）。破了前提就得在装了 pandas 的机器上重生成。
+        inp = json.loads((c / "input.json").read_text(encoding="utf-8"))
+        for tbl in ("today", "yesterday"):
+            rows = inp[tbl]
+            keys = {tuple(sorted(r)) for r in rows}
+            check(f"{c.name} · {tbl} 每行键一样", len(keys) == 1, keys)
+            check(f"{c.name} · {tbl} 没有 null（替身 = pandas 的前提）", all(v is not None for r in rows for v in r.values()))
     txt = (c / "input.json").read_text(encoding="utf-8")
     real = [u for u in UID.findall(txt) if not u.startswith("10000000000000000")]
     check(f"{c.parent.name}/{c.name} 用户ID 全是构造值", not real, real[:3])
@@ -125,6 +133,50 @@ try:
     check("★ 加权分解：Σ结构 + Σ通过率 = 实际变化（差 0）", abs(a["diff"]) < 0.05 and a["sumStruct"] != 0 and a["sumRate"] != 0, a)
     z = load("conversion_analyze", "字面量Dataset_跌20pct_告警和下钻")
     check("★ 转化率整链：跌 20% → 告警一条、环比 −0.2、下钻到商户", len(z["alarmSite"]) == 1 and abs(z["alarmSite"][0]["_dod"] + 0.2) < 1e-9 and len(z["drillSite"]) >= 1, z["alarmSite"])
+    # ---- 2026-09-18 第三批：出单分档、重复行、文本四族、JS 五族 ----
+    o = load("order_monitor_classify", "五档各一行_含站点空丢弃与超180天只入表")
+    check("★ 出单分档：新出单 / 测试交易 / 3天内未出单 / 开通>180天仅表 / 站点空丢弃，各一行",
+          [(a["去向"], a["落点"]) for a in o["audit"]] == [("新出单", "通知+表"), ("测试交易", "通知+表"), ("未出单", "通知+表"), ("开通>180天", "仅表"), ("站点为空", "丢弃")],
+          [(a["去向"], a["落点"]) for a in o["audit"]])
+    check("★ 通道反馈日比报表日早一天 → 「3天内未出单」不是「新审核通过」", o["audit"][2]["备注"] == "👀 3天内未出单", o["audit"][2])
+    check("★ >180 天不进通知（notify 里没有它）", "⏸ 开通>180天" not in o["results"][1] and sum(len(v) for v in o["results"][1].values()) == 3, o["results"][1])
+    d = load("churn_assess", "同一天同一站点两行取后一行")
+    check("★ 同一天同一站点两行：后一行覆盖前一行（tpv30 = 16×100 + 900）", d["sites"]["1000000000000000001|a.com"]["tpv30"] == 2500.0, d["sites"]["1000000000000000001|a.com"]["tpv30"])
+    check("★ 日报正文：一条都不该报时是空串", load("churn_daily_text", "一条都不该报时是空串")["text"] == "")
+    tx = load("churn_daily_text", "掉量单独一行_明写还在出单没算进上面")["text"]
+    check("★ 日报正文：掉量一行明写「还在出单，没算进上面」", "还在出单，没算进上面" in tx and "沉默" not in tx.split("\n")[1], tx)
+    b = load("churn_broadcast", "通道异常单独一行_缺数据一个字不出")
+    check("★ 群消息：通道异常单独一行且写「家」；「网关数据缺」一个字不出", "通道异常：网关A 今天 3 家一起掉" in b["group_text"] and "网关数据缺" not in b["group_text"], b["group_text"][:200])
+    b2 = load("churn_broadcast", "只推前N的沉默跃迁和掉量推_群和私聊分组")
+    check("★ 私聊按直签人分组、群消息不写口径不出现「工作台」", list(b2["dm"]) == ["赵娜"] and "工作台" not in b2["group_text"] and "阈值" not in b2["group_text"], list(b2["dm"]))
+    w1 = load("churn_weekly_text", "标题不带日期_谁在跟只在有人跟时出现")["text"]
+    w2 = load("churn_weekly_text", "在途风险算不出来写算不出来不写0")["text"]
+    check("★ 周报标题是期次不带运行日期；有人跟才出现「谁在跟」段", w1.startswith("【商户流失周报】2026 W37") and "2026-09-14" not in w1 and "谁在跟" in w1 and "谁在跟" not in w2, (w1[:40], "谁在跟" in w2))
+    check("★ 在途风险算不出来写「算不出来」不写 $0", "算不出来" in w2 and "在途风险：$0" not in w2, w2)
+    check("★ 交易量群消息：当天没数是空串；有数就有整条", load("churn_trade_msg", "当天一个数都没有是空串")["text"] == "" and load("churn_trade_msg", "有数就有整条消息")["text"].startswith("【交易量"))
+    wl = load("conversion_watchlist", "低于同行谁进怎么排_量太少不参与")
+    check("★ 待观察：低位名单 L1、L2 进；9 单的 T1 不进也不参与基准（peers=6，基准 52.5%）", [x["uid"] for x in wl["watchlist"]["low"]] == ["L1", "L2"] and wl["peerBaselines"]["A"]["peers"] == 6 and abs(wl["peerBaselines"]["A"]["rate"] - 0.525) < 1e-9, wl["peerBaselines"])
+    wl2 = load("conversion_watchlist", "基准不加权_一家独大不拿自己当基准")
+    check("★ 基准不加权：一家独大的 30% 不是基准，中位数 65%", abs(wl2["peerBaselines"]["E"]["rate"] - 0.65) < 1e-9, wl2["peerBaselines"])
+    lv = load("conversion_level", "跌破P10报_环比只差1pt报不出")
+    check("★ 水平信号：跌破 P10 报出来（本期 0.78 < 0.80），用的本来源池", len(lv["level"]) == 1 and lv["level"][0]["本期值"] == 0.78 and lv["level"][0]["_basis"] == "本来源", lv["level"])
+    check("★ 只有混池没本来源池 → 不报（不做混池回退）；常年 100% → 不报（满分要挡）",
+          load("conversion_level", "只有混池没有本来源池不报_不做混池回退")["level"] == [] and load("conversion_level", "满分指标要挡_常年100pct不报")["level"] == [])
+    tr = load("conversion_trend", "周报期次W9排在W37前")
+    check("★ 趋势：周报期次自然序 W9 → W10 → W37", tr["dates"] == ["2026 W9", "2026 W10", "2026 W37"], tr["dates"])
+    tg, tf = load("conversion_trend", "缺一个大环节断线不跳过"), load("conversion_trend", "期次自然序_多来源多期")
+    check("★ 趋势：缺一个大环节那期是 null（断线），完整的那份没有 null",
+          any(v is None for k in tg["series"] for v in (tg["series"][k].get("独立站API") or [])) and not any(v is None for k in tf["series"] for v in (tf["series"][k].get("独立站API") or [])))
+    bs = load("conversion_baseline", "样本分池_环比样本等于期数减一")
+    check("★ 基准线：水平样本按来源分池、环比样本 = 期数 − 1", len(bs["samples"]["dod"]["独立站API|4. 网关通过率"]) == 2 and len(bs["samples"]["levelMixed"]["4. 网关通过率"]) == 6, {k: len(v) for k, v in bs["samples"]["dod"].items()})
+    bw = load("conversion_baseline", "周报期次自然序_相邻对不配错")
+    dd = bw["samples"]["dod"]["独立站API|4. 网关通过率"]
+    check("★ 基准线：周报期次按自然序配相邻对（W9→W10→W37），两个环比样本都对", len(dd) == 2 and abs(dd[0] - 0.1) < 1e-9 and abs(dd[1] - (0.6 - 0.55) / 0.55) < 1e-9, dd)
+    pr = load("conversion_po_rate", "两段相加等于总流失_只认分子分母")
+    r = next(x for x in pr["rows"] if x["来源"] == "独立站标准收银台")
+    check("★ 支付前中拆账：1282 + 432 = 1714 = PO − 成功；当期值 99.99% 没被拿来算", r["支付前流失"] == 1282 and r["支付中流失"] == 432 and r["总流失"] == 1714 and abs(r["业务单率"] - 1313 / 3027) < 1e-12, r)
+    check("★ 两行分子对不上打 mismatch；缺支付单率那行进 noData 不当 0",
+          load("conversion_po_rate", "两行分子对不上打mismatch")["rows"][0]["mismatch"] is True and load("conversion_po_rate", "缺支付单率那行进noData不当0")["noData"] == ["独立站API"])
 except (FileNotFoundError, KeyError) as e:
     check("expected 读得到、形状对", False, repr(e))
 

@@ -34,4 +34,4 @@ python scripts/同步口径.py --from ../payment-ops-workbench --dry-run   # 看
 ## 坑
 
 `docs/坑.md` 是从工作台按条目号抽的，**§ 号一致**：代码注释里的 `CLAUDE.md §x` 指的就是它。
-这个仓库自己踩的坑记在 `docs/坑-看板.md`（还没有就建）。
+这个仓库自己踩的坑记在 `docs/坑-看板.md`（§D1 起）。

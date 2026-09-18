@@ -1,0 +1,80 @@
+{
+ "peerBaselines": {
+  "A": {
+   "peers": 6,
+   "rate": 0.525,
+   "weak": false
+  }
+ },
+ "watchlist": {
+  "baselines": {
+   "A": {
+    "peers": 6,
+    "rate": 0.525,
+    "weak": false
+   }
+  },
+  "best": {
+   "key": "L2\u0000https://L2.example.com",
+   "name": "ML2",
+   "po": 200,
+   "rate": 0.4,
+   "rateY": 0.62,
+   "site": "https://L2.example.com",
+   "src": "A",
+   "uid": "L2",
+   "单量少": false,
+   "可多成": 25,
+   "基准": 0.525,
+   "缺口": 0.125,
+   "连续期数": 1,
+   "长期低位": false
+  },
+  "fresh": [],
+  "freshNamed": [],
+  "freshTiny": {
+   "count": 0,
+   "po": 0
+  },
+  "low": [
+   {
+    "key": "L1\u0000https://L1.example.com",
+    "name": "ML1",
+    "po": 11,
+    "rate": 0.15,
+    "rateY": 0.1,
+    "site": "https://L1.example.com",
+    "src": "A",
+    "uid": "L1",
+    "单量少": true,
+    "可多成": 4,
+    "基准": 0.525,
+    "缺口": 0.375,
+    "连续期数": 2,
+    "长期低位": false
+   },
+   {
+    "key": "L2\u0000https://L2.example.com",
+    "name": "ML2",
+    "po": 200,
+    "rate": 0.4,
+    "rateY": 0.62,
+    "site": "https://L2.example.com",
+    "src": "A",
+    "uid": "L2",
+    "单量少": false,
+    "可多成": 25,
+    "基准": 0.525,
+    "缺口": 0.125,
+    "连续期数": 1,
+    "长期低位": false
+   }
+  ],
+  "omDate": "",
+  "omPending": [],
+  "tiny": {
+   "count": 1,
+   "po": 9
+  }
+ }
+}

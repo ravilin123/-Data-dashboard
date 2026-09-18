@@ -1,0 +1,64 @@
+{
+ "peerBaselines": {
+  "E": {
+   "peers": 4,
+   "rate": 0.6499999999999999,
+   "weak": false
+  }
+ },
+ "watchlist": {
+  "baselines": {
+   "E": {
+    "peers": 4,
+    "rate": 0.6499999999999999,
+    "weak": false
+   }
+  },
+  "best": {
+   "key": "E1\u0000https://E1.example.com",
+   "name": "ME1",
+   "po": 1000,
+   "rate": 0.3,
+   "rateY": null,
+   "site": "https://E1.example.com",
+   "src": "E",
+   "uid": "E1",
+   "单量少": false,
+   "可多成": 350,
+   "基准": 0.6499999999999999,
+   "缺口": 0.3499999999999999,
+   "连续期数": 1,
+   "长期低位": false
+  },
+  "fresh": [],
+  "freshNamed": [],
+  "freshTiny": {
+   "count": 0,
+   "po": 0
+  },
+  "low": [
+   {
+    "key": "E1\u0000https://E1.example.com",
+    "name": "ME1",
+    "po": 1000,
+    "rate": 0.3,
+    "rateY": null,
+    "site": "https://E1.example.com",
+    "src": "E",
+    "uid": "E1",
+    "单量少": false,
+    "可多成": 350,
+    "基准": 0.6499999999999999,
+    "缺口": 0.3499999999999999,
+    "连续期数": 1,
+    "长期低位": false
+   }
+  ],
+  "omDate": "",
+  "omPending": [],
+  "tiny": {
+   "count": 0,
+   "po": 0
+  }
+ }
+}

@@ -34,6 +34,39 @@ switch (family) {
     out = A.analyze(input.dataset, input.opts);
     break;
   }
+  case 'conversion_watchlist': {
+    const W = await import(C + 'watchlist.js');
+    const { OVERALL_METRIC } = await import(C + 'config.js');
+    const merged = input.merged.map(([uid, src, po, t, y]) => ({
+      来源: src, 用户ID: uid, 商户名称: 'M' + uid, 站点: `https://${uid}.example.com`, 'PO单数_今': po,
+      [OVERALL_METRIC + '_今']: t, ...(y == null ? {} : { [OVERALL_METRIC + '_昨']: y }),
+    }));
+    const w = W.buildWatchlist(merged, input.churn || { gained: [] }, true);
+    out = { watchlist: w, peerBaselines: W.peerBaselines(merged.map(r => ({ src: r.来源, po: r['PO单数_今'], rate: r[OVERALL_METRIC + '_今'] }))) };
+    break;
+  }
+  case 'conversion_level': {
+    const L = await import(C + 'level.js');
+    const bl = { baseline: { v: 2, bySrc: {}, mixed: {}, level: input.level || {}, levelMixed: input.levelMixed || {} }, active: true };
+    out = L.levelSignals(input.rows, { tDate: input.tDate, bl });
+    break;
+  }
+  case 'conversion_trend': {
+    const T = await import(C + 'trend.js');
+    out = T.buildTrend(input.rows, { limit: input.limit || 12 });
+    break;
+  }
+  case 'conversion_baseline': {
+    const B = await import(C + 'baseline.js');
+    const samples = B.collectSamples(input.rows, B.emptySamples());
+    out = { samples, baseline: B.buildBaseline(samples, input.k, input.min_abs) };
+    break;
+  }
+  case 'conversion_po_rate': {
+    const P = await import(C + 'po_rate.js');
+    out = P.buildPoRate(input.rows, { tDate: input.tDate, yDate: input.yDate || null });
+    break;
+  }
   case 'shared_fail_group': {
     const G = await import(S + 'fail_group.js');
     out = G.groupFailures(input.rows, { methodOf: r => r.pay_method });

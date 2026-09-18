@@ -1,0 +1,291 @@
+{
+ "baseline": {
+  "bl": {
+   "bySrc": {},
+   "level": {},
+   "mixed": {},
+   "noMix": {
+    "独立站API|4. 网关通过率": {
+     "gap": 0.10499999999999998,
+     "mix": 0.7050000000000001,
+     "n": 3,
+     "own": 0.81,
+     "why": "水平和其他来源差太远"
+    },
+    "独立站标准收银台|4. 网关通过率": {
+     "gap": 0.1050000000000001,
+     "mix": 0.7050000000000001,
+     "n": 3,
+     "own": 0.6,
+     "why": "水平和其他来源差太远"
+    }
+   },
+   "v": 2
+  },
+  "stats": [
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "1.1 校验1通过率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "1.2 Paynow点击率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "2. 业务校验通过率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "3. 网关提交率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 6,
+    "m": "4. 网关通过率",
+    "n": 4,
+    "noMix": [
+     "独立站API",
+     "独立站标准收银台"
+    ],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "3.1 风控综合通过率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "3.1.1 风控-通过",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": true,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "3.1.2 风控-3DS",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": true,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "3.2 3DS交易占比",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": true,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "3.2.1 风控3DS交易占比",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": true,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "3.2.2 政策3DS交易占比",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "3.3 3DS通过率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "3.3.1 风控3DS通过率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "3.3.2 政策3DS通过率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "4.1 非3DS网关通过率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "4.2 3DS网关通过率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "4.2.1 风控3DS网关通过率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "4.2.2 政策3DS网关通过率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   }
+  ],
+  "totalN": 0
+ },
+ "samples": {
+  "_seen": {},
+  "dod": {
+   "独立站API|4. 网关通过率": [
+    0.024999999999999883,
+    -0.012195121951219388
+   ],
+   "独立站标准收银台|4. 网关通过率": [
+    0.016666666666666684,
+    -0.03278688524590167
+   ]
+  },
+  "dodMixed": {
+   "4. 网关通过率": [
+    0.024999999999999883,
+    0.016666666666666684,
+    -0.012195121951219388,
+    -0.03278688524590167
+   ]
+  },
+  "level": {
+   "独立站API|4. 网关通过率": [
+    0.8,
+    0.82,
+    0.81
+   ],
+   "独立站标准收银台|4. 网关通过率": [
+    0.6,
+    0.61,
+    0.59
+   ]
+  },
+  "levelMixed": {
+   "4. 网关通过率": [
+    0.8,
+    0.6,
+    0.82,
+    0.61,
+    0.81,
+    0.59
+   ]
+  }
+ }
+}

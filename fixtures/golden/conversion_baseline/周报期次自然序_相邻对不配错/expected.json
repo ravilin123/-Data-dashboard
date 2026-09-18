@@ -1,0 +1,259 @@
+{
+ "baseline": {
+  "bl": {
+   "bySrc": {},
+   "level": {},
+   "mixed": {},
+   "noMix": {},
+   "v": 2
+  },
+  "stats": [
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "1.1 校验1通过率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "1.2 Paynow点击率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "2. 业务校验通过率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "3. 网关提交率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 3,
+    "m": "4. 网关通过率",
+    "n": 2,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "3.1 风控综合通过率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "3.1.1 风控-通过",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": true,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "3.1.2 风控-3DS",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": true,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "3.2 3DS交易占比",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": true,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "3.2.1 风控3DS交易占比",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": true,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "3.2.2 政策3DS交易占比",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "3.3 3DS通过率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "3.3.1 风控3DS通过率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "3.3.2 政策3DS通过率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "4.1 非3DS网关通过率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "4.2 3DS网关通过率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "4.2.1 风控3DS网关通过率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   },
+   {
+    "insufficient": true,
+    "isF": false,
+    "lvl": null,
+    "lvlN": 0,
+    "m": "4.2.2 政策3DS网关通过率",
+    "n": 0,
+    "noMix": [],
+    "own": 0,
+    "ownLvl": 0,
+    "srcTotal": 3
+   }
+  ],
+  "totalN": 0
+ },
+ "samples": {
+  "_seen": {},
+  "dod": {
+   "独立站API|4. 网关通过率": [
+    0.10000000000000009,
+    0.09090909090909079
+   ]
+  },
+  "dodMixed": {
+   "4. 网关通过率": [
+    0.10000000000000009,
+    0.09090909090909079
+   ]
+  },
+  "level": {
+   "独立站API|4. 网关通过率": [
+    0.5,
+    0.55,
+    0.6
+   ]
+  },
+  "levelMixed": {
+   "4. 网关通过率": [
+    0.5,
+    0.55,
+    0.6
+   ]
+  }
+ }
+}
