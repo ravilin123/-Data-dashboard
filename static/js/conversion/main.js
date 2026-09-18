@@ -345,7 +345,10 @@ $('#export').addEventListener('click', exportExcel);
    注意这里**不碰任何飞书推送**：解析完是否发群、是否写多维表格，仍然只有点按钮才发。
    ============================================================ */
 (async function inboxAutoLoad(){
-  const want=new URLSearchParams(location.search).get('inbox');
+  // 离线快照（dashboard/offline.py）没有 URL 参数，靠 <html data-inbox="日期"> 传同一件事
+  // ⚠ 无头跑法（jobs/conversion_run.mjs）里 document 是桩，没有 dataset —— 判一下，别让整个模块炸在这一行
+  const root=document.documentElement;
+  const want=new URLSearchParams(location.search).get('inbox') || (root && root.dataset && root.dataset.inbox) || '';
   let info;
   try{
     const r=await fetch('/api/inbox/latest',{cache:'no-store'});

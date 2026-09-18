@@ -12,6 +12,7 @@ import json
 import re
 from pathlib import Path
 
+from . import offline, snapshot
 from .source import WorkbenchSource
 
 HERE = Path(__file__).resolve().parent.parent
@@ -73,3 +74,42 @@ def export_day(date: str | None = None, *, out_dir: Path | None = None, data_dir
     return {"ok": bool(rep.get("ok")), "date": date, "path": str(p), "latest": str(latest) if latest.exists() else None,
             "blocks": [(b["key"], bool(b["ok"])) for b in rep.get("blocks") or []],
             "reason": "" if rep.get("ok") else (rep.get("reason") or "三块都没有这天的数据")}
+
+
+def export_offline(date: str | None = None, *, out_dir: Path | None = None, get=None, keep: int = 30,
+                   now: str | None = None) -> dict:
+    """四个页面原样嵌成一张离线单文件（offline.py）。数据从工作台接口抓（snapshot.py）。
+
+    date 不给 = 各页各自最新；给了 = 每页用那一天（没有那天的页面退回它自己的最新，写进 notes）。
+    落盘规矩同 export_day：看板_<date>.html + 看板.html（最新日期那份），只留 keep 份。
+    """
+    from datetime import datetime, timedelta, timezone
+    get = get or snapshot.default_getter()
+    snap = snapshot.collect(get, date)
+    got = [d for d in snap["dates"].values() if d]
+    if not got:
+        return {"ok": False, "date": None, "path": None, "latest": None, "notes": snap["notes"],
+                "reason": "四个页面一个都没有数据（没有报表存档、台账、流失状态、出单结果）"}
+    d = date or max(got)
+    gen = now or datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M")
+    pages = {}
+    for key, _, _, label, _ in offline.PAGES:
+        used = snap["dates"].get(key)
+        banner = f"离线快照 · {label} · 数据日期 {used or '无'} · 生成于 {gen}" + (
+            f" · 你要的是 {d}，这一页只有 {used}" if used and d != used else "")
+        attrs = {"data-inbox": used} if key == "conversion" and used else None
+        pages[key] = offline.page_document(key, snap["pages"][key], banner=banner, html_attrs=attrs)
+    html = offline.shell(pages, date=d, generated_at=gen, notes=snap["notes"])
+    out = out_dir or OUT_DIR
+    out.mkdir(parents=True, exist_ok=True)
+    p = out / f"看板_{d}.html"
+    p.write_text(html, encoding="utf-8")
+    files = dated_files(out)
+    newest = files[-1][0] if files else d
+    latest = out / LATEST_NAME
+    if d >= newest:
+        latest.write_text(html, encoding="utf-8")
+    for _, old in files[:-keep] if keep > 0 else []:
+        old.unlink(missing_ok=True)
+    return {"ok": True, "date": d, "path": str(p), "latest": str(latest) if latest.exists() else None,
+            "dates": snap["dates"], "notes": snap["notes"], "size": p.stat().st_size, "reason": ""}
