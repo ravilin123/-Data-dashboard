@@ -1,0 +1,3 @@
+# 口径层里只有 order_monitor/excel.py 要这两个（读 Excel 报表）；churn/ 和看板服务零依赖。
+pandas>=2.0
+openpyxl>=3.1

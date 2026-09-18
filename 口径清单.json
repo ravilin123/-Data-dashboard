@@ -1,0 +1,122 @@
+{
+  "_说明": [
+    "口径层的清单：哪些文件是「算数和口径」、可以被看板仓库（ravilin123/-Data-dashboard）原路径同步走。",
+    "同步脚本在看板仓库 scripts/同步口径.py，只认这份清单；tests/metrics_manifest.py 守着它：",
+    "文件都在、python 组不 import 飞书/邮箱/Flask、js 组只 import 清单内的模块。",
+    "改这份清单 = 改「什么算口径层」，要在 docs/specs/看板/计划.md 里说清楚为什么。"
+  ],
+  "python": {
+    "_为什么": "纯算数：吃台账 / 报表行，吐结果或文本。不发、不写表、不调度。names.py 是 owner_name / MODES 的唯一出处（§2.18.96）。ledger.py 是台账的读写（看板服务要读同一种文件），它碰 mailbox 的两个函数改成了函数内 import。excel.py 要 pandas + openpyxl。",
+    "files": [
+      "names.py",
+      "churn/__init__.py",
+      "churn/adapters.py",
+      "churn/assess.py",
+      "churn/broadcast.py",
+      "churn/config.py",
+      "churn/daily.py",
+      "churn/funnel.py",
+      "churn/ledger.py",
+      "churn/overview.py",
+      "churn/trade.py",
+      "churn/trade_msg.py",
+      "churn/weekly.py",
+      "order_monitor/__init__.py",
+      "order_monitor/excel.py",
+      "order_monitor/classify.py",
+      "order_monitor/report.py"
+    ]
+  },
+  "js": {
+    "_为什么": "conversion/ 和 merchant/ 整目录同步：转化率、商户成功率的算数只有 JS 版，而 tests/*.mjs 的 harness 会把它们的 import 图整个拉起来（analyze.js 引 render/overview.js，feishu.js 引 store/render）——挑着同步就是 §2.18.99 那种「只在某个分支上炸」。其余三块只拿 analyze / overview（几何）。jobs/conversion_run.mjs 是转化率的无头跑法，将来服务端算转化率从它起步。",
+    "dirs": [
+      "static/js/conversion",
+      "static/js/merchant",
+      "static/js/shared"
+    ],
+    "files": [
+      "static/js/order_monitor/analyze.js",
+      "static/js/churn/analyze.js",
+      "static/js/churn/overview.js",
+      "static/js/trade/analyze.js",
+      "static/vendor/xlsx.full.min.js",
+      "jobs/conversion_run.mjs"
+    ]
+  },
+  "tests": {
+    "_为什么": "只同步纯函数的用例。routes / config_form / page_refs 是页面和路由的；churn_weekly.py 和 order_monitor.py 连调度、发送一起测；no_real_writes.py 会去跑那九套写台账的（含没同步的）；run-unit.sh 列着页面那三条 —— 这些都留在工作台，看板仓库自己有一个按清单跑的 runner。",
+    "files": [
+      "tests/_harness.mjs",
+      "tests/_tmpdata.py",
+      "tests/funnel.mjs",
+      "tests/dod_column.mjs",
+      "tests/dataset.mjs",
+      "tests/dataset_all.mjs",
+      "tests/churn.mjs",
+      "tests/impact.mjs",
+      "tests/watchlist.mjs",
+      "tests/bitable.mjs",
+      "tests/merchant_scan.mjs",
+      "tests/trend.mjs",
+      "tests/baseline.mjs",
+      "tests/level.mjs",
+      "tests/coverage.mjs",
+      "tests/ai_prompt.mjs",
+      "tests/po_rate.mjs",
+      "tests/shared.mjs",
+      "tests/fail_group.mjs",
+      "tests/table_text.mjs",
+      "tests/merchant_core.mjs",
+      "tests/merchant_charts.mjs",
+      "tests/order_monitor_page.mjs",
+      "tests/churn_page.mjs",
+      "tests/churn_overview.mjs",
+      "tests/conversion_headless.mjs",
+      "tests/churn_assess.py",
+      "tests/churn_daily.py",
+      "tests/churn_funnel.py",
+      "tests/churn_gateway.py",
+      "tests/churn_overview.py",
+      "tests/trade.py",
+      "tests/trade_msg.py"
+    ]
+  },
+  "docs": {
+    "_为什么": "docs/坑.md 里和口径有关的条目号。看板仓库按号抽整条，§ 号不变（代码注释里写的 CLAUDE.md §x 指的就是它们）。",
+    "坑": [
+      "1.5",
+      "2",
+      "2.5",
+      "2.6",
+      "2.75",
+      "2.8",
+      "2.9",
+      "2.10",
+      "2.11",
+      "2.12",
+      "2.13",
+      "2.14",
+      "2.15",
+      "2.16",
+      "2.16.5",
+      "2.17",
+      "2.17.5",
+      "2.17.7",
+      "2.18",
+      "2.18.2",
+      "2.18.5",
+      "2.18.96",
+      "2.18.98",
+      "2.20",
+      "2.21.4",
+      "2.21.5",
+      "2.21.65",
+      "3"
+    ],
+    "specs": [
+      "docs/specs/商户流失.md",
+      "docs/specs/看板/计划.md",
+      "docs/specs/看板/契约.md"
+    ]
+  }
+}

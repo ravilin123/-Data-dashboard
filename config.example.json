@@ -1,0 +1,15 @@
+{
+  "_comment": "复制成 config.json。config.json 在 .gitignore 里，口令和公司接口 token 只存在那里。",
+  "dashboard": {
+    "_comment_listen": "看板服务监听地址。要让内网别的机器打开就写 0.0.0.0；口令配置页 /dashboard/admin 只许本机回环地址访问，和这里无关。",
+    "listen": "127.0.0.1:5060",
+    "_comment_workbench_data_dir": "工作台的 data/ 目录（同一台机器上）。留空 = 当前目录下的 data/。交易量读 data/churn/ledger/、流失读 data/churn/state/、出单读 data/出单监控结果/。",
+    "workbench_data_dir": "",
+    "_comment_viewers": "按人配口令。页面上输口令，服务端全等且 enabled 才放行；名字只用来记访问日志。用 /dashboard/admin 改，别手打。",
+    "viewers": [],
+    "_comment_company_api": "公司接口。base_url 留空 = 未接（sources 里 configured:false，不报错）。接上后期望 GET {base_url}/daily?date=YYYY-MM-DD 回契约里的日报（contracts/daily_report.schema.json）；不合契约会把字段路径列出来。",
+    "company_api": {"base_url": "", "token": "", "timeout": 20},
+    "_comment_week_anchor": "周从星期几开始：0=周一 … 4=周五（工作台报表的周是周五→周四）… 6=周日（公司看板现在是周日起）。只影响交易量按周的分桶。",
+    "week_anchor": 4
+  }
+}
