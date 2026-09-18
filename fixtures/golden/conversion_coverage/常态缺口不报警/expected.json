@@ -1,0 +1,22 @@
+{
+ "alert": false,
+ "analyzed": 13359,
+ "analyzedRatio": 0.8303188513891478,
+ "extras": [
+  {
+   "po": 2016,
+   "ratio": 0.1253030020510908,
+   "src": "FLYLINK商品订单"
+  },
+  {
+   "po": 654,
+   "ratio": 0.040648890546336004,
+   "src": "FLYLINK快捷订单"
+  }
+ ],
+ "gap": 60,
+ "gapRatio": 0.003729256013425322,
+ "listed": 16029,
+ "ok": true,
+ "top": 16089
+}

@@ -1,0 +1,11 @@
+{
+ "alert": true,
+ "analyzed": 8000,
+ "analyzedRatio": 0.8,
+ "extras": [],
+ "gap": 2000,
+ "gapRatio": 0.2,
+ "listed": 8000,
+ "ok": true,
+ "top": 10000
+}

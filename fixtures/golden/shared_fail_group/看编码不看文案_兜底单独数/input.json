@@ -1,0 +1,38 @@
+{
+ "rows": [
+  {
+   "fail_reason": "Insufficient funds",
+   "pay_method": "VISA"
+  },
+  {
+   "fail_reason": "Insufficient funds",
+   "pay_method": "VISA"
+  },
+  {
+   "fail_reason": "Zorp error 9981",
+   "pay_method": "MC"
+  },
+  {
+   "fail_reason": "Zorp error 9981",
+   "pay_method": "MC"
+  },
+  {
+   "fail_reason": "Quux timeout",
+   "pay_method": "MC"
+  },
+  {
+   "fail_reason": "Card declined by your bank",
+   "pay_method": "MC"
+  },
+  {
+   "fail_code": "ZFFK00003",
+   "fail_reason": "风控系统拦截",
+   "pay_method": "VISA"
+  },
+  {
+   "fail_code": "ZF3D00001",
+   "fail_reason": "Card issuer declined the transaction due to risk",
+   "pay_method": "VISA"
+  }
+ ]
+}

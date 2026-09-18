@@ -1,0 +1,34 @@
+{
+ "actual": -10,
+ "diff": 0,
+ "items": [
+  {
+   "col": "m",
+   "eRate": -2.5,
+   "eStruct": -20,
+   "fresh": false,
+   "impact": -22.5,
+   "lastRate": 80,
+   "lastShare": 50,
+   "n": 50,
+   "rate": 70,
+   "share": 25,
+   "v": "A"
+  },
+  {
+   "col": "m",
+   "eRate": 0,
+   "eStruct": 12.5,
+   "fresh": false,
+   "impact": 12.5,
+   "lastRate": 50,
+   "lastShare": 50,
+   "n": 150,
+   "rate": 50,
+   "share": 75,
+   "v": "B"
+  }
+ ],
+ "sumRate": -2.5,
+ "sumStruct": -7.5
+}

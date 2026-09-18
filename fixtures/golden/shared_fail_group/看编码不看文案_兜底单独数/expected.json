@@ -1,0 +1,90 @@
+{
+ "fallback": {
+  "label": "网关拦截 · 发卡行拒绝",
+  "n": 3,
+  "share": 0.375,
+  "tops": [
+   {
+    "n": 2,
+    "text": "Zorp error 9981"
+   },
+   {
+    "n": 1,
+    "text": "Quux timeout"
+   }
+  ]
+ },
+ "groups": [
+  {
+   "fallbackN": 3,
+   "group": "网关拦截",
+   "label": "网关拦截 · 发卡行拒绝",
+   "methods": [
+    {
+     "m": "MC",
+     "n": 4
+    }
+   ],
+   "n": 4,
+   "samples": [
+    "Zorp error 9981",
+    "Quux timeout",
+    "Card declined by your bank"
+   ],
+   "share": 0.5,
+   "sub": "发卡行拒绝"
+  },
+  {
+   "fallbackN": 0,
+   "group": "网关拦截",
+   "label": "网关拦截 · 付款人卡片问题",
+   "methods": [
+    {
+     "m": "VISA",
+     "n": 2
+    }
+   ],
+   "n": 2,
+   "samples": [
+    "Insufficient funds"
+   ],
+   "share": 0.25,
+   "sub": "付款人卡片问题"
+  },
+  {
+   "fallbackN": 0,
+   "group": "风控拦截",
+   "label": "风控拦截",
+   "methods": [
+    {
+     "m": "VISA",
+     "n": 1
+    }
+   ],
+   "n": 1,
+   "samples": [
+    "风控系统拦截"
+   ],
+   "share": 0.125,
+   "sub": null
+  },
+  {
+   "fallbackN": 0,
+   "group": "3DS验证失败",
+   "label": "3DS验证失败",
+   "methods": [
+    {
+     "m": "VISA",
+     "n": 1
+    }
+   ],
+   "n": 1,
+   "samples": [
+    "Card issuer declined the transaction due to risk"
+   ],
+   "share": 0.125,
+   "sub": null
+  }
+ ],
+ "total": 8
+}

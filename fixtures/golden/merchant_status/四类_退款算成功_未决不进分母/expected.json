@@ -1,0 +1,18 @@
+{
+ "excludePending": [
+  "支付成功",
+  "支付失败"
+ ],
+ "stClass": [
+  "succ",
+  "succ",
+  "succ",
+  "fail",
+  "pending",
+  "pending",
+  "unknown",
+  "unknown",
+  "unknown",
+  "succ"
+ ]
+}

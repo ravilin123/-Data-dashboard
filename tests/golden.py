@@ -74,6 +74,57 @@ try:
           [s["label"] for s in a4["series"]] != [s["label"] for s in a6["series"]] or
           [s.get("start") for s in a4["series"]] != [s.get("start") for s in a6["series"]],
           (a4["series"][-1], a6["series"][-1]))
+    # ---- 2026-09-18 补的十族 ----
+    c = load("churn_assess_chain", "一档只跃迁一次")
+    check("★ 多日连跑：沉默2 只在满 2 天那天命中一次，之后三天不再命中",
+          [d for d, h in c["hits"].items() if h] == ["2026-09-14"] and c["hits"]["2026-09-14"] == ["沉默2"], c["hits"])
+    c = load("churn_assess_chain", "恢复归零并清掉已恢复标记")
+    check("★ 沉默后回来 → 命中「恢复」，档位归 0", c["hits"]["2026-09-15"] == ["恢复"]
+          and c["states"]["2026-09-15"]["sites"]["1000000000000000001|a.com"]["silence_level"] == 0, c["hits"])
+    c = load("churn_assess_chain", "掉量关闭_两天内回到八成")
+    check("★ 掉 80% → 掉量·推；次日回到 ≥80% → 掉量关闭", list(c["hits"].values()) == [["掉量·推"], ["掉量关闭"]], c["hits"])
+    c = load("churn_assess_chain", "掉量过期_两天没回不命中静默清掉")
+    last = c["states"]["2026-09-16"]["sites"]["1000000000000000001|a.com"]
+    check("★ 两天没回：不命中「关闭」，drop 静默清掉", c["hits"]["2026-09-16"] == [] and last["drop"] is None, (c["hits"], last["drop"]))
+    c = load("churn_assess_chain", "缺口横在中间不跃迁")
+    u = c["states"]["2026-09-15"]["sites"]["1000000000000000001|a.com"]
+    check("★ 缺口横在中间：uncertain 且不跃迁不命中", u["uncertain"] is True and all(h == [] for h in c["hits"].values()), (u["uncertain"], c["hits"]))
+    w = load("churn_weekly", "头条是上周量_掉量不重叠_有人跟看状态不看名字")
+    check("★ 周报：头条 7800（上周量）、掉量 1 家不在流失里、有人跟看状态（未跟进不算）",
+          w["lost"]["tpv"] == 7800.0 and w["drop"]["sites"] == 1 and w["claimed"] == 1 and w["unclaimed"] == 1, (w["lost"], w["drop"], w["claimed"], w["unclaimed"]))
+    w = load("churn_weekly", "在途风险同一站点一周只算一次")
+    check("★ 在途风险：先 7 后 30 的同一站点只算一次 → 2 个站点 5000", w["risk"]["sites"] == 2 and w["risk"]["tpv"] == 5000.0, w["risk"])
+    w = load("churn_weekly", "在途风险窗口算不出来ok_false不给0")
+    check("★ states 为 null → risk ok:false、tpv null，不是 0", w["risk"]["ok"] is False and w["risk"]["tpv"] is None, w["risk"])
+    check("★ 不足两周 / 没走完的周 → 整份 ok:false", load("churn_weekly", "不足两个完整周ok_false")["ok"] is False
+          and load("churn_weekly", "没走完的那一周不算数")["ok"] is False)
+    f = load("churn_funnel", "五级各几个_状态没覆盖到单独数")
+    check("★ 漏斗：五级 5/4/3/1/1，状态没覆盖到的单独数 1", [l["sites"] for l in f["levels"]] == [5, 4, 3, 1, 1] and f["uncovered"]["sites"] == 1, ([l["sites"] for l in f["levels"]], f["uncovered"]))
+    f = load("churn_funnel", "耗时三种排除_终点早于起点不进分母")
+    check("★ 终点早于起点 negative=1、起点缺 no_start=2，都不进分母", f["steps"][0]["negative"] == 1 and f["steps"][0]["no_start"] == 2 and f["steps"][0]["n"] == 4, f["steps"][0])
+    f1, f2 = load("churn_funnel", "五级各几个_状态没覆盖到单独数"), load("churn_funnel", "date是台账那天不是今天")
+    check("★ date 换成更早那天，卡住等待天数跟着变（不是拿今天当终点）", f1["stuck"][0]["median"] != f2["stuck"][0]["median"], (f1["stuck"][0]["median"], f2["stuck"][0]["median"]))
+    d = load("churn_trade_drill", "多维是与_kw不分大小写")
+    check("★ 下钻：接入模式=API 与 kw=B.COM 同时成立 → 只剩 b.com", [r["站点"] for r in d["drill"]["rows"]] == ["b.com"], d["drill"]["rows"])
+    d = load("churn_trade_drill", "截断自报limit2")
+    check("★ 下钻截断自报 {n, tpv}", d["drill"]["truncated"] == {"n": 1, "tpv": 210.0} and len(d["drill"]["rows"]) == 2, d["drill"]["truncated"])
+    t1, t2 = load("churn_trade", "校验对上报表周行_同"), load("churn_trade", "校验对不上报表周行_只报不改数")
+    check("★ 报表校验：对上 同=true；对不上 同=false 且台账的数不改", t1["check"]["同"] is True and t2["check"]["同"] is False and t2["current"]["tpv"] == 7000.0, (t1["check"], t2["check"]))
+    j = load("conversion_funnel", "toRate量纲_逆算链_calcFunnel")
+    check("★ toRate：99.99% → 0.9999（不是 99.99）、认不出 → null；calcFunnel 900/720", abs(j["toRate"][0] - 0.9999) < 1e-9 and j["toRate"][-1] is None and j["calcFunnel"] == [900, 720], j)
+    check("★ 覆盖：0.37% 缺口不报警、20% 报警、没数据 ok:false",
+          load("conversion_coverage", "常态缺口不报警")["alert"] is False and load("conversion_coverage", "缺口超过阈值才报")["alert"] is True
+          and load("conversion_coverage", "这一期没数据ok_false")["ok"] is False)
+    g = load("shared_fail_group", "看编码不看文案_兜底单独数")
+    check("★ 失败归类：ZF3D 编码进 3DS（文案写着 issuer 也不算发卡行）；兜底 3 笔单独数", g["fallback"]["n"] == 3
+          and any(x["label"] == "3DS验证失败" and x["n"] == 1 for x in g["groups"]), [(x["label"], x["n"]) for x in g["groups"]])
+    st = load("merchant_status", "四类_退款算成功_未决不进分母")
+    check("★ 状态归类：退款算成功、未决 pending、没见过 unknown；分母只留成功+失败", st["stClass"][1] == "succ" and st["stClass"][4] == "pending"
+          and st["stClass"][6] == "unknown" and st["excludePending"] == ["支付成功", "支付失败"], st)
+    a = load("merchant_change_attrib", "加权分解是恒等式")
+    check("★ 加权分解：Σ结构 + Σ通过率 = 实际变化（差 0）", abs(a["diff"]) < 0.05 and a["sumStruct"] != 0 and a["sumRate"] != 0, a)
+    z = load("conversion_analyze", "字面量Dataset_跌20pct_告警和下钻")
+    check("★ 转化率整链：跌 20% → 告警一条、环比 −0.2、下钻到商户", len(z["alarmSite"]) == 1 and abs(z["alarmSite"][0]["_dod"] + 0.2) < 1e-9 and len(z["drillSite"]) >= 1, z["alarmSite"])
 except (FileNotFoundError, KeyError) as e:
     check("expected 读得到、形状对", False, repr(e))
 
