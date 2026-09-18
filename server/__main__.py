@@ -18,7 +18,7 @@ class _Threaded(ThreadingMixIn, WSGIServer):
 def main() -> int:
     cfg = C.load()
     host, port = C.listen(cfg)
-    app = create_app(cfg, data_dir=C.data_dir(cfg), page_path=C.ROOT / "dashboard.html",
+    app = create_app(cfg, data_dir=C.data_dir(cfg), page_path=C.ROOT / "static" / "dashboard.html",
                      log_path=C.ROOT / "data" / "access.log", config_path=C.CONFIG_PATH)
     print(f"[看板] 配置来自 {cfg.get('_source') or '默认值（没有 config.json）'}")
     print(f"[看板] 台账目录 {C.data_dir(cfg)}")

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""server.sources.workbench —— 读工作台的 data/ 目录，拼三块日报。
+"""dashboard.source —— 读工作台自己的 data/ 目录，拼三块日报（契约 v1：docs/specs/看板/契约.md）。
 
 文件在哪（和工作台一字不差，那边改了这里要跟）：
   交易量   data/churn/ledger/<date>.json        {"date","source_date","sites":[行]}  → churn.overview.build
@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from churn import overview as OV
-from .. import report as R
+from . import report as R
 
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -47,8 +47,9 @@ class WorkbenchSource:
     key = "workbench"
     label = "工作台台账"
 
-    def __init__(self, data_dir: Path, settings: dict | None = None):
-        self.data = Path(data_dir)
+    def __init__(self, data_dir: Path | None = None, settings: dict | None = None):
+        # 不给就是工作台自己的 data/（和 churn.ledger.LEDGER_DIR / workbench.order_monitor.RESULT_DIR 同一个根，tests/dashboard.py 钉着）
+        self.data = Path(data_dir) if data_dir else Path(__file__).resolve().parent.parent / "data"
         s = settings or {}
         self.top_n = int(s.get("top_n") or 10)
         self.hits_top_n = int(s.get("hits_top_n") or 20)

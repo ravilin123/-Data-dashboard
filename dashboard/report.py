@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""server.report —— 日报的形状只在这里拼（契约 v1，docs/specs/看板/契约.md）。
+"""dashboard.report —— 日报的形状只在这里拼（契约 v1，docs/specs/看板/契约.md）。
 
 顺序全走数组；算不出来给 None 不给 0；截断要自报。数据源只管调这几个函数，不自己拼 dict。
 """

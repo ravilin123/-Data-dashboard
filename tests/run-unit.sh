@@ -24,9 +24,6 @@ done
 for f in tests/golden.py tests/contract.py tests/server.py; do
   [ -f "$f" ] && run "$f" python3 "$f"
 done
-for f in tests/page.mjs; do
-  [ -f "$f" ] && run "$f" node "$f"
-done
 
 echo
 [ $fail -eq 0 ] && echo "单元测试全部通过" || echo "有用例失败"

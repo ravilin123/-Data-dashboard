@@ -2,7 +2,7 @@
 
 `payment-ops-workbench` 的算数和口径在这里有一份**只读镜像**，上面架着：
 
-1. 一张能脱离本机打开的看板页（`dashboard.html`），展示日报（交易量 / 出单监控 / 商户流失），定时刷新，按人配口令
+1. 一张能脱离本机打开的看板页（`static/dashboard.html`，同步自工作台），展示日报（交易量 / 出单监控 / 商户流失），定时刷新，按人配口令
 2. 一个零依赖的小服务（`server/`）：读工作台的台账吐日报、校验口令、导出自带数据的单文件
 3. 交给公司研发的口径文档 + 黄金用例（`docs/口径.md`、`fixtures/golden/`）
 
@@ -11,6 +11,7 @@
 ```bash
 cp config.example.json config.json          # 填 workbench_data_dir；口令去 /dashboard/admin 配
 python -m server                            # 默认 http://127.0.0.1:5070/dashboard
+# 只要一张离线单文件不要服务？那是工作台自己的事：工作台每天落 data/看板/看板.html（见工作台 README「离线看板」）
 ```
 
 第一次或工作台改了口径之后：

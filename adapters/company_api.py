@@ -19,7 +19,7 @@ import urllib.parse
 import urllib.request
 
 from contracts.validate import validate
-from server import report as R
+from dashboard import report as R
 
 
 def _http_get(url: str, headers: dict, timeout: int) -> tuple[int, str]:

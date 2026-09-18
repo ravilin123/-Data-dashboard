@@ -31,8 +31,9 @@ from contracts.validate import validate  # noqa: E402
 from server import config as C  # noqa: E402
 from wsgiref.util import setup_testing_defaults  # noqa: E402
 from wsgiref.validate import validator  # noqa: E402
-from server.app import EMBED_TAG, create_app  # noqa: E402
-from server.sources.workbench import WorkbenchSource  # noqa: E402
+from dashboard.export import EMBED_TAG  # noqa: E402
+from server.app import create_app  # noqa: E402
+from dashboard.source import WorkbenchSource  # noqa: E402
 
 fails = []
 

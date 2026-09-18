@@ -1,7 +1,7 @@
 {
   "from_repo": "https://github.com/ravilin123/payment-ops-workbench",
-  "from_commit": "94554cd",
-  "synced_at": "2026-09-18T12:18:42+08:00",
+  "from_commit": "5ca08cb",
+  "synced_at": "2026-09-18T16:23:38+08:00",
   "files": {
     "static/js/conversion/README.md": "cf6d2ace8c73c1f0738e5ca1be5244df277f089998b45d765675efca858bf8d9",
     "static/js/conversion/ai_prompt.js": "b2cbf9b063186cdb7b9fe626a791c49c65649582a0dd22d160f88a42c838a8a9",
@@ -65,12 +65,18 @@
     "order_monitor/excel.py": "44a0b7e48ee13c2ca17d3674c9df1cba14c450a3b58f91ded242a0f62a2e8c11",
     "order_monitor/classify.py": "084cfa4aabeb67ec4b659aef901a57bb1003769fa2a75b4afca2486bfe40caf1",
     "order_monitor/report.py": "587e03f3d3ee75ac54e0cffab01775f9c4e76d949651882c5746dad96b37d688",
+    "dashboard/__init__.py": "1ea5187ab008081cf0a74d74920419d8b0b958e01cb6a735e6c9bca6063d58d1",
+    "dashboard/report.py": "ba3b1ac0d334ba4e26d14ba58f2049b4082e1bad5d86c0af9263d62bd5145e79",
+    "dashboard/source.py": "625cf45419519ca93456b67e4e33c16e6d1b7c4c631107965734bab1e401dfb6",
+    "dashboard/export.py": "867dcdd1b360c64d7d6fe501decf6d6738faeb1ae106320c7a392d771ebdbe55",
+    "dashboard/__main__.py": "13bef0e1e32652a64423e08507c905290f9471cb75c80d3cc50f17b4895186d3",
     "static/js/order_monitor/analyze.js": "31d265c037de6be70a917b76e7495da2823a4eca9c1e82f704aead72e89e8282",
     "static/js/churn/analyze.js": "f56a8c858967d6e4da8385742a845dd5a5a6586a900b9eade17d882623f73f9f",
     "static/js/churn/overview.js": "ca83553ccaf277f9f960e630e34c2677d4f3eb776c7b9654c7e406478fa0f329",
     "static/js/trade/analyze.js": "91c5a99f5113100b03f91bbeda4bb0fbd70358129cdd18ec35a0a1fc62222430",
     "static/vendor/xlsx.full.min.js": "0e4392331b744be5f89af288f936c7109373e3680a4aaad4f8e89866a4a7fe37",
     "jobs/conversion_run.mjs": "c5e6146bea5bdb30ac2f89bf0c9ac8089a9bcbd4a2dd412596b9c5e2cb8a6fa1",
+    "static/dashboard.html": "8f57b114ec29885b4ad749b13d81c650a0b2cb90b2e7554db062ced37cb5d1d6",
     "tests/_harness.mjs": "2fe0a9eba3843cdcb7743044019750c0392901c45a2e5d9d2c75568f6c5e7af2",
     "tests/_tmpdata.py": "87e2ad6d8f14f66eeb587814924076922af0042ed4291f1abf62ef81f49374e9",
     "tests/funnel.mjs": "822d456bff55ddd35025dbd0a763afc75cb1b66040e5cde124a24b479c02930b",
@@ -104,13 +110,14 @@
     "tests/churn_overview.py": "3e92a18ed77666ef23a0f53f1a369bbe4b6a4f27d8fb3c99dcee48153572efd1",
     "tests/trade.py": "fa8d61a517933e22984a2bfdf17de829efd483c5e99b2a6dced8a8b098b2b56c",
     "tests/trade_msg.py": "25cb35611389532c7ce3d703e1452ab700ae1191686afd643eb77d6a7161faf9",
+    "tests/page.mjs": "86b227b21522be7bd9de196e13c9a3d8e8914c304765e913fba0cad8671c48cb",
     "docs/specs/商户流失.md": "49632b1150d6799e7a0202ac09b23eee6d195dea0ab15800f7f5067891587c8a",
-    "docs/specs/看板/计划.md": "1eb7c8a2a37bee89bc03a872159cc6e0e939d359a00d4cd7d9323c497db7ee35",
+    "docs/specs/看板/计划.md": "cad06c0b57fddd92549889d9146ec92af0935a85f92f6da91291c9c88becf3ae",
     "docs/specs/看板/契约.md": "19be59060e2e1db59ac80fe5bf518f1138ea2876191a8611b2120f1040ab637a",
-    "口径清单.json": "31554818041645c188a9c217367c3b8194175035f1be259f1d08f9a22b58d81c"
+    "口径清单.json": "391302d3a03637f3c2162e179579a5c1f7082157483b098038a195d85304904e"
   },
   "docs": {
-    "docs/坑.md": "d4091aeb6c50c198ae45a75d0405d3deac6927506c0bd22b24e759ee01e1a915",
+    "docs/坑.md": "4160399b41ae0683bce4a300c94898ffcd146fa5e110cb9244982840e3dafe08",
     "坑": [
       "1.5",
       "2",

@@ -28,11 +28,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from . import config as C
-from . import report as R
-from .sources.workbench import WorkbenchSource
+# 日报的拼法和形状在工作台 dashboard/ 里（同步来的，一处定义）；这里只做接口、口令、导出
+from dashboard import report as R
+from dashboard.export import EMBED_TAG, render
+from dashboard.source import WorkbenchSource
 
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-EMBED_TAG = '<script id="embedded-report" type="application/json">null</script>'
 LOOPBACK = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 TZ = timezone(timedelta(hours=8))
 _lock = threading.Lock()
@@ -160,14 +161,12 @@ def create_app(cfg: dict, *, data_dir: Path, page_path: Path, log_path: Path, co
             return e
         if not page_path.exists():
             return _err(404, f"{page_path.name} 不在")
-        tpl = page_path.read_text(encoding="utf-8")
-        if tpl.count(EMBED_TAG) != 1:
-            return _err(500, "页面里找不到嵌入数据的那个标签（#embedded-report），导出不了")
         rep = src.daily(d) if d else R.report("", src.key, src.label, [], reason="一天数据都没有")
         rep["exported_by"] = name
-        # </script> 不能出现在内联 JSON 里；转义 `</` 之后 JSON 语义不变
-        payload = json.dumps(rep, ensure_ascii=False).replace("</", "<\\/")
-        out = tpl.replace(EMBED_TAG, f'<script id="embedded-report" type="application/json">{payload}</script>')
+        try:
+            out = render(rep, page_path.read_text(encoding="utf-8"))     # 嵌入和 </ 转义都在工作台 dashboard.export 里
+        except ValueError as e:
+            return _err(500, str(e))
         log_access(name, req.path, d)
         fname = urllib.parse.quote(f"看板_{src.key}_{d or '空'}.html")
         return _html(200, out, [("Content-Disposition", f"attachment; filename*=UTF-8''{fname}")])

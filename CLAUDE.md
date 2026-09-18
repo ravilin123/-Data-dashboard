@@ -15,8 +15,7 @@
 
 | 目录 | 是什么 |
 |---|---|
-| `server/` | 看板服务：`/api/dashboard/*`、按人口令、访问日志、导出单文件。**标准库 wsgiref，零依赖** |
-| `dashboard.html` | 单文件页，纯 HTML + 内联 JS，按契约通用渲染 |
+| `server/` | 看板服务：`/api/dashboard/*`、按人口令、访问日志、导出单文件。**标准库 wsgiref，零依赖**；日报的拼法和页面是同步来的 `dashboard/`、`static/dashboard.html` |
 | `adapters/` | 公司接口 → 契约日报（或 → 报表列名再喂口径层） |
 | `contracts/` | 日报契约的 JSON Schema + 校验器 + 每块口径的输入列 |
 | `fixtures/golden/` | 黄金用例：输入 → 输出，验收标准。`expected` 是口径层跑出来的，**不手写** |

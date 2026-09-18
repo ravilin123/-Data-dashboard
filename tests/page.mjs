@@ -18,9 +18,9 @@ import { makeChecker } from './_harness.mjs';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const check = makeChecker();
 
-const htmlPath = path.join(ROOT, 'dashboard.html');
+const htmlPath = path.join(ROOT, 'static', 'dashboard.html');
 const html = fs.existsSync(htmlPath) ? fs.readFileSync(htmlPath, 'utf8') : '';
-check('dashboard.html 在仓库根目录', html.length > 0);
+check('static/dashboard.html 在', html.length > 0);
 
 /* ---- 抓纯函数块 ---- */
 const m = html.match(/<script id="dashboard-lib">([\s\S]*?)<\/script>/);
